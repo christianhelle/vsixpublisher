@@ -11,6 +11,8 @@ use crate::messages as msg;
 pub const AUDIENCE: &str = "marketplace.visualstudio.com";
 pub const REQUEST_TOKEN_VAR: &str = "ACTIONS_ID_TOKEN_REQUEST_TOKEN";
 pub const REQUEST_URL_VAR: &str = "ACTIONS_ID_TOKEN_REQUEST_URL";
+const TOKEN_EXCHANGE_PATH: &str = "_apis/gallery/token?api-version=7.2-preview.1";
+const CI_PROVIDER: &str = "github-actions";
 
 pub trait TokenProvider {
     /// Returns a marketplace session token, logging errors on failure.
@@ -127,11 +129,14 @@ impl TokenProvider for GitHubActionsTokenProvider {
             },
         };
 
-        let exchange = marketplace.join("_apis/gallery/token").ok()?;
+        // Same contract as vsce; the original VsixPublisher's Bearer exchange is rejected.
+        let exchange = marketplace.join(TOKEN_EXCHANGE_PATH).ok()?;
         let body = serde_json::json!({ "publisherName": publisher }).to_string();
         let rb = http
             .post(exchange)
-            .bearer_auth(&provider_token)
+            .header("Authorization", format!("FederatedToken {provider_token}"))
+            .header("Accept", "application/json")
+            .header("X-Market-CI-Provider", CI_PROVIDER)
             .header("Content-Type", "application/json; charset=utf-8")
             .body(body);
         match send(rb) {
@@ -221,7 +226,14 @@ mod tests {
             .create();
         let exchange = s
             .mock("POST", "/_apis/gallery/token")
-            .match_header("authorization", "Bearer gh-jwt")
+            .match_query(Matcher::UrlEncoded(
+                "api-version".into(),
+                "7.2-preview.1".into(),
+            ))
+            .match_header("authorization", "FederatedToken gh-jwt")
+            .match_header("accept", "application/json")
+            .match_header("x-market-ci-provider", "github-actions")
+            .match_header("content-type", Matcher::Regex("^application/json".into()))
             .match_body(Matcher::Json(serde_json::json!({"publisherName":"me"})))
             .with_body(r#"{"credential":"session"}"#)
             .create();
