@@ -1,12 +1,69 @@
 # vsixpublisher
 
-A cross-platform Rust port of `VsixPublisher.exe`, the tool in the Visual Studio SDK that publishes
-extensions to the [Visual Studio Marketplace](https://marketplace.visualstudio.com/).
+[![Crates.io](https://img.shields.io/crates/v/vsixpublisher.svg)](https://crates.io/crates/vsixpublisher)
+[![CI](https://github.com/christianhelle/vsixpublisher/actions/workflows/ci.yml/badge.svg)](https://github.com/christianhelle/vsixpublisher/actions/workflows/ci.yml)
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-The original is a .NET Framework 4.7.2 app that ships with ~40 assemblies and only runs on Windows.
-This port is a single native binary for Windows, Linux and macOS. It's meant as a drop-in replacement:
-same commands, same `-argument value` syntax, same messages and `VsixPubNNNN` error codes, same exit
-codes, and the same `~/.vsce` publisher store.
+A drop-in replacement for the `VsixPublisher.exe` included in the Visual Studio SDK, the tool that
+publishes extensions to the [Visual Studio Marketplace](https://marketplace.visualstudio.com/).
+
+The SDK's VsixPublisher is a .NET Framework app that comes with about 40 assemblies and only runs on
+Windows with Visual Studio installed. vsixpublisher is a single native binary of under 1 MB that
+runs on Windows, Linux and macOS. It takes the same commands, `-argument value` syntax and publish
+manifest, prints the same messages and `VsixPubNNNN` error codes, returns the same exit codes, and
+shares the same `~/.vsce` publisher store. Existing scripts keep working when you swap the path.
+
+## Install
+
+### macOS/Linux
+
+```bash
+curl -fsSL https://christianhelle.com/vsixpublisher/install | bash
+```
+
+This installs the latest release to `~/.local/bin`. To install somewhere else, or to pin a release:
+
+```bash
+curl -fsSL https://christianhelle.com/vsixpublisher/install | INSTALL_DIR="$HOME/bin" bash
+curl -fsSL https://christianhelle.com/vsixpublisher/install | VERSION="0.1.0" bash
+```
+
+### Windows PowerShell
+
+```powershell
+irm https://christianhelle.com/vsixpublisher/install.ps1 | iex
+```
+
+This installs the latest release to `%LOCALAPPDATA%\Programs\vsixpublisher`, or to `~\.local\bin` or
+`~\bin` if one of those already exists, and adds it to your user `PATH`. To install somewhere else, or
+to pin a release:
+
+```powershell
+$install = irm https://christianhelle.com/vsixpublisher/install.ps1
+& ([scriptblock]::Create($install)) -InstallDir "$env:USERPROFILE\bin"
+& ([scriptblock]::Create($install)) -Version "0.1.0"
+```
+
+### Cargo
+
+```bash
+cargo install vsixpublisher
+```
+
+Prebuilt archives for x64 and ARM64 on Windows, Linux and macOS are on the
+[releases page](https://github.com/christianhelle/vsixpublisher/releases).
+
+## Replacing VsixPublisher.exe
+
+Swap the SDK path for `vsixpublisher` and keep the arguments as they are:
+
+```diff
+- & "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VSSDK\VisualStudioIntegration\Tools\Bin\VsixPublisher.exe" `
+-     publish -payload My.vsix -publishManifest publishManifest.json -personalAccessToken $env:PAT
++ vsixpublisher publish -payload My.vsix -publishManifest publishManifest.json -personalAccessToken $env:PAT
+```
+
+Because it doesn't need Visual Studio, the publish step can also run on a Linux or macOS runner.
 
 ## Usage
 
@@ -56,9 +113,10 @@ steps:
   - run: vsixpublisher publish -payload out/My.vsix -publishManifest publishManifest.json -oidc
 ```
 
-## Differences from the original
+## Differences from the SDK's VsixPublisher
 
 - No Visual Studio telemetry.
+- `help` and `version` print `Copyright (C) Christian Resma Helle` and this tool's own version.
 - `-oidc` works. The original sends the GitHub token to the Marketplace token exchange as `Bearer`,
   which the Marketplace rejects. This port uses the same contract as `vsce`
   (`Authorization: FederatedToken`, `api-version=7.2-preview.1`, `X-Market-CI-Provider: github-actions`),
