@@ -25,11 +25,14 @@ pub struct PublisherDb {
 
 /// `%USERPROFILE%\.vsce` (or `$HOME/.vsce`).
 pub fn default_path() -> PathBuf {
-    let var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
-    std::env::var_os(var)
-        .filter(|v| !v.is_empty())
+    let vars: &[&str] = if cfg!(windows) {
+        &["USERPROFILE", "HOME"]
+    } else {
+        &["HOME"]
+    };
+    vars.iter()
+        .find_map(|v| std::env::var_os(v).filter(|v| !v.is_empty()))
         .map(PathBuf::from)
-        .or_else(dirs::home_dir)
         .unwrap_or_default()
         .join(".vsce")
 }

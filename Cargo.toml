@@ -14,7 +14,6 @@ zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 quick-xml = "0.37"
 tempfile = "3"
-dirs = "6"
 url = "2"
 
 [dev-dependencies]
