@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use reqwest::Url;
+use url::Url;
 
 use crate::cli::{Args, Argument, ArgumentType::*, Command};
 use crate::client::{ClientFactory, GetExtension, MarketplaceClient, parse_marketplace_url};

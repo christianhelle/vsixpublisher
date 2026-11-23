@@ -6,7 +6,7 @@ pub mod publish;
 
 use crate::client::{ClientFactory, MarketplaceClient};
 use crate::logger::Logger;
-use reqwest::Url;
+use url::Url;
 
 /// Creates a client, returning the exit code on failure.
 pub(crate) fn connect(

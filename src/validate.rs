@@ -28,7 +28,7 @@ pub fn resolve(base: &Path, p: &str) -> std::path::PathBuf {
 }
 
 pub fn is_http_url(s: &str) -> bool {
-    reqwest::Url::parse(s)
+    url::Url::parse(s)
         .map(|u| u.scheme() == "http" || u.scheme() == "https")
         .unwrap_or(false)
 }

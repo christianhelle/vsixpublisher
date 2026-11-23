@@ -3,6 +3,7 @@ pub mod client;
 pub mod commands;
 pub mod db;
 pub mod enums;
+pub mod http;
 pub mod logger;
 pub mod manifest;
 pub mod marketplace_manifest;

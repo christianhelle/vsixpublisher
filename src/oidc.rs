@@ -1,10 +1,10 @@
 //! Port of `GitHubActionsOidcTokenProvider` (trusted publishing).
 
-use reqwest::Url;
-use reqwest::blocking::Client;
 use serde::Deserialize;
+use url::Url;
 
 use crate::client::{AUTH_TIMEOUT, user_agent};
+use crate::http::{Http, HttpError};
 use crate::logger::Logger;
 use crate::messages as msg;
 
@@ -57,21 +57,15 @@ pub fn token_request_url(raw: &str) -> Option<Url> {
     Some(u)
 }
 
-enum Fail {
-    Timeout,
-    Other(String),
-}
-
-fn send(rb: reqwest::blocking::RequestBuilder) -> Result<(bool, String), Fail> {
-    let r = rb.send().map_err(|e| {
-        if e.is_timeout() {
-            Fail::Timeout
-        } else {
-            Fail::Other(e.to_string())
-        }
-    })?;
-    let ok = r.status().is_success();
-    Ok((ok, r.text().unwrap_or_default()))
+fn send(
+    http: &Http,
+    method: &str,
+    url: &Url,
+    headers: &[(&str, &str)],
+    body: Option<&[u8]>,
+) -> Result<(bool, String), HttpError> {
+    http.send(method, url, headers, body)
+        .map(|(status, text)| (status.is_success(), text))
 }
 
 impl TokenProvider for GitHubActionsTokenProvider {
@@ -94,22 +88,18 @@ impl TokenProvider for GitHubActionsTokenProvider {
             log.error(msg::INVALID_URI, &[&url, &REQUEST_URL_VAR]);
             return None;
         };
-        let http = Client::builder()
-            .timeout(AUTH_TIMEOUT)
-            .user_agent(user_agent())
-            .build()
-            .ok()?;
-
-        let request = http
-            .get(request_url)
-            .bearer_auth(&token)
-            .header("Accept", "application/json");
-        let provider_token = match send(request) {
-            Err(Fail::Timeout) => {
+        let http = Http::new(AUTH_TIMEOUT, &user_agent());
+        let bearer = format!("Bearer {token}");
+        let headers = [
+            ("Authorization", bearer.as_str()),
+            ("Accept", "application/json"),
+        ];
+        let provider_token = match send(&http, "GET", &request_url, &headers, None) {
+            Err(HttpError::Timeout) => {
                 log.error(msg::AUTHENTICATION_TIMEOUT, &[]);
                 return None;
             }
-            Err(Fail::Other(e)) => {
+            Err(HttpError::Other(e)) => {
                 log.error(msg::OIDC_PROVIDER_TOKEN_REQUEST_FAILED, &[&e]);
                 return None;
             }
@@ -136,19 +126,19 @@ impl TokenProvider for GitHubActionsTokenProvider {
         // Same contract as vsce; the original VsixPublisher's Bearer exchange is rejected.
         let exchange = marketplace.join(TOKEN_EXCHANGE_PATH).ok()?;
         let body = serde_json::json!({ "publisherName": publisher }).to_string();
-        let rb = http
-            .post(exchange)
-            .header("Authorization", format!("FederatedToken {provider_token}"))
-            .header("Accept", "application/json")
-            .header("X-Market-CI-Provider", CI_PROVIDER)
-            .header("Content-Type", "application/json; charset=utf-8")
-            .body(body);
-        match send(rb) {
-            Err(Fail::Timeout) => {
+        let federated = format!("FederatedToken {provider_token}");
+        let headers = [
+            ("Authorization", federated.as_str()),
+            ("Accept", "application/json"),
+            ("X-Market-CI-Provider", CI_PROVIDER),
+            ("Content-Type", "application/json; charset=utf-8"),
+        ];
+        match send(&http, "POST", &exchange, &headers, Some(body.as_bytes())) {
+            Err(HttpError::Timeout) => {
                 log.error(msg::AUTHENTICATION_TIMEOUT, &[]);
                 None
             }
-            Err(Fail::Other(e)) => {
+            Err(HttpError::Other(e)) => {
                 log.error(msg::OIDC_SESSION_TOKEN_EXCHANGE_FAILED, &[&e]);
                 None
             }

@@ -2,10 +2,10 @@
 
 use std::time::Duration;
 
-use reqwest::blocking::{Client, RequestBuilder, Response};
-use reqwest::{Method, StatusCode, Url};
 use serde::Deserialize;
+use url::Url;
 
+use crate::http::{Http, HttpError, StatusCode, basic_auth};
 use crate::logger::Logger;
 use crate::messages as msg;
 
@@ -99,7 +99,14 @@ impl ClientFactory for HttpClientFactory {
 pub struct HttpMarketplaceClient {
     base: Url,
     pat: String,
-    http: Client,
+    http: Http,
+}
+
+/// A request to the marketplace API.
+struct Req {
+    method: &'static str,
+    url: Url,
+    api_version: &'static str,
 }
 
 /// Mirrors `VssHttpClientBase` error handling: wrapped-exception JSON or a status-based message.
@@ -129,12 +136,7 @@ fn service_error(url: &Url, status: StatusCode, body: &str) -> ErrorResponse {
 
 impl HttpMarketplaceClient {
     pub fn new(base: Url, pat: String) -> Self {
-        let http = Client::builder()
-            .timeout(REQUEST_TIMEOUT)
-            .user_agent(user_agent())
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .expect("http client");
+        let http = Http::new(REQUEST_TIMEOUT, &user_agent());
         Self { base, pat, http }
     }
 
@@ -150,21 +152,35 @@ impl HttpMarketplaceClient {
         self.url(&format!("_apis/gallery/publishers/{p}/extensions/{e}/"))
     }
 
-    fn request(&self, method: Method, url: Url, api_version: &str) -> RequestBuilder {
-        self.http
-            .request(method, url)
-            .basic_auth("", Some(&self.pat))
-            .header(
-                "Accept",
-                format!("application/json; api-version={api_version}"),
-            )
-            .header("X-TFS-FedAuthRedirect", "Suppress")
+    fn request(&self, method: &'static str, url: Url, api_version: &'static str) -> Req {
+        Req {
+            method,
+            url,
+            api_version,
+        }
     }
 
-    fn send(rb: RequestBuilder) -> Result<(StatusCode, String), reqwest::Error> {
-        let resp: Response = rb.send()?;
-        let status = resp.status();
-        Ok((status, resp.text().unwrap_or_default()))
+    fn send(&self, req: Req) -> Result<(StatusCode, String), HttpError> {
+        self.send_with(&self.http, req, None)
+    }
+
+    fn send_with(
+        &self,
+        http: &Http,
+        req: Req,
+        body: Option<&[u8]>,
+    ) -> Result<(StatusCode, String), HttpError> {
+        let auth = basic_auth("", &self.pat);
+        let accept = format!("application/json; api-version={}", req.api_version);
+        let mut headers = vec![
+            ("Authorization", auth.as_str()),
+            ("Accept", accept.as_str()),
+            ("X-TFS-FedAuthRedirect", "Suppress"),
+        ];
+        if body.is_some() {
+            headers.push(("Content-Type", "application/octet-stream"));
+        }
+        http.send(req.method, &req.url, &headers, body)
     }
 
     /// Equivalent of `VssConnection.ConnectAsync`.
@@ -178,8 +194,8 @@ impl HttpMarketplaceClient {
         }
         let url =
             self.url("_apis/connectionData?connectOptions=1&lastChangeId=-1&lastChangeId64=-1");
-        let rb = self.request(Method::GET, url, "1.0").timeout(AUTH_TIMEOUT);
-        match Self::send(rb) {
+        let rb = self.request("GET", url, "1.0");
+        match self.send_with(&Http::new(AUTH_TIMEOUT, &user_agent()), rb, None) {
             Ok((s, _)) if s.is_success() => true,
             Ok((s, body)) => {
                 let e = service_error(&self.base, s, &body);
@@ -189,7 +205,7 @@ impl HttpMarketplaceClient {
                 );
                 false
             }
-            Err(e) if e.is_timeout() => {
+            Err(HttpError::Timeout) => {
                 log.error(msg::AUTHENTICATION_TIMEOUT, &[]);
                 false
             }
@@ -202,14 +218,13 @@ impl HttpMarketplaceClient {
 
     fn upload(
         &self,
-        rb: RequestBuilder,
+        rb: Req,
         package: &[u8],
         log: &mut Logger,
     ) -> Result<Option<ExtensionResponse>, String> {
-        let rb = rb
-            .header("Content-Type", "application/octet-stream")
-            .body(package.to_vec());
-        let (status, body) = Self::send(rb).map_err(|e| e.to_string())?;
+        let (status, body) = self
+            .send_with(&self.http, rb, Some(package))
+            .map_err(|e| e.to_string())?;
         if status.is_success() {
             return Ok(serde_json::from_str(&body).ok());
         }
@@ -226,12 +241,8 @@ impl HttpMarketplaceClient {
 
 impl MarketplaceClient for HttpMarketplaceClient {
     fn get_publisher(&self, publisher: &str, log: &mut Logger) -> Option<MarketplacePublisher> {
-        let rb = self.request(
-            Method::GET,
-            self.publisher_url(publisher),
-            PUBLISHER_API_VERSION,
-        );
-        match Self::send(rb) {
+        let rb = self.request("GET", self.publisher_url(publisher), PUBLISHER_API_VERSION);
+        match self.send(rb) {
             Ok((s, body)) if s.is_success() => match serde_json::from_str(&body) {
                 Ok(p) => Some(p),
                 Err(e) => {
@@ -253,11 +264,11 @@ impl MarketplaceClient for HttpMarketplaceClient {
 
     fn delete_publisher(&self, publisher: &str, log: &mut Logger) -> bool {
         let rb = self.request(
-            Method::DELETE,
+            "DELETE",
             self.publisher_url(publisher),
             PUBLISHER_API_VERSION,
         );
-        match Self::send(rb) {
+        match self.send(rb) {
             Ok((s, _)) if s.is_success() => {}
             Ok((s, body)) => {
                 let e = service_error(&self.base, s, &body);
@@ -275,11 +286,11 @@ impl MarketplaceClient for HttpMarketplaceClient {
 
     fn get_extension(&self, publisher: &str, extension: &str, log: &mut Logger) -> GetExtension {
         let rb = self.request(
-            Method::GET,
+            "GET",
             self.extension_url(publisher, extension),
             EXTENSION_API_VERSION,
         );
-        match Self::send(rb) {
+        match self.send(rb) {
             Ok((s, body)) if s.is_success() => match serde_json::from_str(&body) {
                 Ok(r) => GetExtension::Success(r),
                 Err(e) => {
@@ -315,7 +326,7 @@ impl MarketplaceClient for HttpMarketplaceClient {
     ) -> Result<Option<ExtensionResponse>, String> {
         let url = self.url(&format!("_apis/gallery/publishers/{publisher}/extensions/"));
         self.upload(
-            self.request(Method::POST, url, EXTENSION_API_VERSION),
+            self.request("POST", url, EXTENSION_API_VERSION),
             package,
             log,
         )
@@ -330,7 +341,7 @@ impl MarketplaceClient for HttpMarketplaceClient {
     ) -> Result<Option<ExtensionResponse>, String> {
         let url = self.extension_url(publisher, extension);
         self.upload(
-            self.request(Method::PUT, url, EXTENSION_API_VERSION),
+            self.request("PUT", url, EXTENSION_API_VERSION),
             package,
             log,
         )
@@ -338,11 +349,11 @@ impl MarketplaceClient for HttpMarketplaceClient {
 
     fn delete_extension(&self, publisher: &str, extension: &str, log: &mut Logger) -> DeleteResult {
         let rb = self.request(
-            Method::DELETE,
+            "DELETE",
             self.extension_url(publisher, extension),
             EXTENSION_API_VERSION,
         );
-        match Self::send(rb) {
+        match self.send(rb) {
             Ok((s, _)) if s.is_success() => DeleteResult::Success,
             Ok((s, body)) => {
                 let e = service_error(&self.base, s, &body);
