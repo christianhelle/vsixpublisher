@@ -6,3 +6,4 @@ pub mod enums;
 pub mod manifest;
 pub mod db;
 pub mod commands;
+pub mod client;
