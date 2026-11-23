@@ -43,9 +43,7 @@ fn percent_decode(s: &str) -> String {
 fn find_part(zip: &Archive, part: &str) -> Option<usize> {
     let want = percent_decode(part.trim_start_matches('/'));
     (0..zip.len()).find(|&i| {
-        zip.name_for_index(i)
-            .map(|n| percent_decode(n).eq_ignore_ascii_case(&want))
-            .unwrap_or(false)
+        matches!(zip.name_for_index(i), Some(Ok(n)) if percent_decode(&n).eq_ignore_ascii_case(&want))
     })
 }
 
