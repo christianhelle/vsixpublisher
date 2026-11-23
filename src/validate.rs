@@ -33,6 +33,13 @@ pub fn is_http_url(s: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// `^[a-zA-Z0-9][a-zA-Z0-9\-]*$`
+fn is_valid_internal_name(s: &str) -> bool {
+    let mut b = s.bytes();
+    b.next().is_some_and(|c| c.is_ascii_alphanumeric())
+        && b.all(|c| c.is_ascii_alphanumeric() || c == b'-')
+}
+
 /// Validates (and normalizes tags of) the manifest. `manifest_path` is used in messages.
 pub fn validate(
     m: &mut PublishManifest,
@@ -100,8 +107,7 @@ pub fn validate(
         return false;
     }
     let internal = id.internal_name.as_deref().unwrap_or_default();
-    let re = regex::Regex::new(r"^[a-zA-Z0-9][a-zA-Z0-9\-]*$").unwrap();
-    if !re.is_match(internal) || len16(internal) > MAX_INTERNAL_NAME {
+    if !is_valid_internal_name(internal) || len16(internal) > MAX_INTERNAL_NAME {
         log.error(msg::INVALID_INTERNAL_NAME, &[&internal]);
         return false;
     }

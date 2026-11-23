@@ -305,11 +305,17 @@ pub fn is_valid_culture(s: &str) -> bool {
     if let Ok(n) = s.trim().parse::<u32>() {
         return culture_name_for_lcid(n).is_some();
     }
-    let re = regex::Regex::new(
-        r"^[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?(-[A-Za-z0-9]{5,8})*$",
-    )
-    .unwrap();
-    re.is_match(s)
+    // language[-Script][-REGION|-123][-variant...]
+    let alpha = |p: &str, n: std::ops::RangeInclusive<usize>| {
+        n.contains(&p.len()) && p.bytes().all(|b| b.is_ascii_alphabetic())
+    };
+    let mut parts = s.split('-').peekable();
+    if !parts.next().is_some_and(|p| alpha(p, 2..=3)) {
+        return false;
+    }
+    parts.next_if(|p| alpha(p, 4..=4));
+    parts.next_if(|p| alpha(p, 2..=2) || (p.len() == 3 && p.bytes().all(|b| b.is_ascii_digit())));
+    parts.all(|p| (5..=8).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_alphanumeric()))
 }
 
 #[cfg(test)]
@@ -430,6 +436,12 @@ mod tests {
         assert!(is_valid_culture("zh-Hans"));
         assert!(is_valid_culture("1033"));
         assert!(!is_valid_culture("english"));
+        assert!(is_valid_culture("es-419"));
+        assert!(is_valid_culture("sr-Latn-RS"));
+        assert!(is_valid_culture("de-DE-1901x"));
+        assert!(!is_valid_culture("en-"));
+        assert!(!is_valid_culture("e"));
+        assert!(!is_valid_culture("en-USA"));
         assert!(!is_valid_culture("99999"));
     }
 }
