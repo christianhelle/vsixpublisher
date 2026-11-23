@@ -100,7 +100,11 @@ impl TokenProvider for GitHubActionsTokenProvider {
             .build()
             .ok()?;
 
-        let provider_token = match send(http.get(request_url).bearer_auth(&token)) {
+        let request = http
+            .get(request_url)
+            .bearer_auth(&token)
+            .header("Accept", "application/json");
+        let provider_token = match send(request) {
             Err(Fail::Timeout) => {
                 log.error(msg::AUTHENTICATION_TIMEOUT, &[]);
                 return None;
@@ -222,6 +226,7 @@ mod tests {
         s.mock("GET", "/oidc")
             .match_query(Matcher::UrlEncoded("audience".into(), AUDIENCE.into()))
             .match_header("authorization", "Bearer req-token")
+            .match_header("accept", "application/json")
             .with_body(r#"{"value":"gh-jwt"}"#)
             .create();
         let exchange = s
