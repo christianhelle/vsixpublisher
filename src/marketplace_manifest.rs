@@ -23,7 +23,11 @@ pub fn file_name(p: &str) -> &str {
 }
 
 pub fn ensure_leading_slash(p: &str) -> String {
-    if p.starts_with('/') { p.to_string() } else { format!("/{p}") }
+    if p.starts_with('/') {
+        p.to_string()
+    } else {
+        format!("/{p}")
+    }
 }
 
 /// `Utilities.GetPayloadName`.
@@ -45,10 +49,17 @@ struct El {
 
 impl El {
     fn new(name: &'static str) -> Self {
-        Self { name, attrs: Vec::new(), content: Content::Empty }
+        Self {
+            name,
+            attrs: Vec::new(),
+            content: Content::Empty,
+        }
     }
     fn text(name: &'static str, t: impl Into<String>) -> Self {
-        Self { content: Content::Text(t.into()), ..Self::new(name) }
+        Self {
+            content: Content::Text(t.into()),
+            ..Self::new(name)
+        }
     }
     /// `SetAttributeValue`: a `None` value removes/omits the attribute.
     fn attr(mut self, k: &'static str, v: Option<impl Into<String>>) -> Self {
@@ -148,13 +159,22 @@ fn escape_attr(s: &str) -> String {
 }
 
 fn property(id: &str, value: impl Into<String>) -> El {
-    El::new("Property").attr("Id", Some(id)).attr("Value", Some(value))
+    El::new("Property")
+        .attr("Id", Some(id))
+        .attr("Value", Some(value))
 }
 
 fn asset_tag(a: &AssetFile) -> El {
     let path = a.target_path.trim_start_matches('/').to_string();
-    let ty = a.asset_type.clone().filter(|t| !t.is_empty()).unwrap_or_else(|| path.clone());
-    El::new("Asset").attr("Type", Some(ty)).attr("Path", Some(path)).attr("Addressable", Some("true"))
+    let ty = a
+        .asset_type
+        .clone()
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(|| path.clone());
+    El::new("Asset")
+        .attr("Type", Some(ty))
+        .attr("Path", Some(path))
+        .attr("Addressable", Some("true"))
 }
 
 /// Generates `extension.marketplacemanifest`. Identity must be resolved.
@@ -171,8 +191,14 @@ pub fn generate(payload: &str, payload_type: PayloadType, m: &PublishManifest) -
             .attr("Version", id.version.map(|v| v.to_string()))
             .attr("Publisher", m.publisher.clone()),
     );
-    md.push(El::text("DisplayName", id.display_name.clone().unwrap_or_default()));
-    md.push(El::text("Description", id.description.clone().unwrap_or_default()).attr("xml:space", Some("preserve")));
+    md.push(El::text(
+        "DisplayName",
+        id.display_name.clone().unwrap_or_default(),
+    ));
+    md.push(
+        El::text("Description", id.description.clone().unwrap_or_default())
+            .attr("xml:space", Some("preserve")),
+    );
     if let Some(c) = m.categories.as_ref().filter(|c| !c.is_empty()) {
         let names: Vec<&str> = c.iter().map(|c| c.server_name()).collect();
         md.push(El::text("Categories", names.join(",")));
@@ -195,9 +221,15 @@ pub fn generate(payload: &str, payload_type: PayloadType, m: &PublishManifest) -
         md.push(El::text("Icon", ensure_leading_slash(file_name(icon))));
     }
     let mut props = El::new("Properties");
-    props.push(property("Microsoft.VisualStudio.Services.EnableMarketplaceQnA", if m.qna { "true" } else { "false" }));
+    props.push(property(
+        "Microsoft.VisualStudio.Services.EnableMarketplaceQnA",
+        if m.qna { "true" } else { "false" },
+    ));
     if let Some(repo) = m.repo.as_ref().filter(|s| !s.is_empty()) {
-        props.push(property("Microsoft.VisualStudio.Services.Links.Source", repo.clone()));
+        props.push(property(
+            "Microsoft.VisualStudio.Services.Links.Source",
+            repo.clone(),
+        ));
     }
     md.push(props);
 
@@ -228,7 +260,10 @@ pub fn generate(payload: &str, payload_type: PayloadType, m: &PublishManifest) -
     if payload_type == PayloadType::Link {
         root.child_mut("Metadata")
             .child_mut("Properties")
-            .push(property("Microsoft.VisualStudio.Services.Links.Getstarted", payload));
+            .push(property(
+                "Microsoft.VisualStudio.Services.Links.Getstarted",
+                payload,
+            ));
     } else {
         root.child_mut("Assets").push(
             El::new("Asset")
@@ -272,8 +307,16 @@ mod tests {
                 }]),
             }),
             asset_files: vec![
-                AssetFile { path_on_disk: "README.md".into(), target_path: "/overview.md".into(), asset_type: Some(OVERVIEW_TYPE.into()) },
-                AssetFile { path_on_disk: "img/a.png".into(), target_path: "img/a.png".into(), asset_type: None },
+                AssetFile {
+                    path_on_disk: "README.md".into(),
+                    target_path: "/overview.md".into(),
+                    asset_type: Some(OVERVIEW_TYPE.into()),
+                },
+                AssetFile {
+                    path_on_disk: "img/a.png".into(),
+                    target_path: "img/a.png".into(),
+                    asset_type: None,
+                },
             ],
             ..Default::default()
         }
@@ -324,7 +367,9 @@ mod tests {
         assert!(xml.contains(
             "  <Installation>\r\n    <InstallationTarget Id=\"Microsoft.VisualStudio.Ide\" Version=\"[0.0,0.0]\" />"
         ));
-        assert!(xml.contains(r#"<InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0,18.0)" />"#));
+        assert!(xml.contains(
+            r#"<InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0,18.0)" />"#
+        ));
         assert!(xml.contains(r#"<Property Id="Microsoft.VisualStudio.Services.Links.Getstarted" Value="https://example.com/dl" />"#));
         assert!(!xml.contains("Microsoft.VisualStudio.Ide.Payload"));
         // Installation comes between Metadata and Assets.

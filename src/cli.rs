@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::logger::{format_net, Logger};
+use crate::logger::{Logger, format_net};
 use crate::messages as msg;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,7 +22,13 @@ pub struct Argument {
 
 impl Argument {
     pub const fn new(name: &'static str, kind: ArgumentType, help: &'static str) -> Self {
-        Self { name, kind, help, required: false, hidden: false }
+        Self {
+            name,
+            kind,
+            help,
+            required: false,
+            hidden: false,
+        }
     }
     pub const fn required(mut self) -> Self {
         self.required = true;
@@ -86,7 +92,9 @@ impl Default for Parser {
 
 impl Parser {
     pub fn new() -> Self {
-        Self { commands: Vec::new() }
+        Self {
+            commands: Vec::new(),
+        }
     }
 
     pub fn add(&mut self, name: &'static str, cmd: Box<dyn Command>) {
@@ -174,7 +182,10 @@ impl Parser {
                 return fail(format_net(msg::INVALID_ARGUMENT, &[text]));
             }
             let arg_name = &text[1..];
-            let Some(arg) = arguments.iter().find(|a| a.name.eq_ignore_ascii_case(arg_name)) else {
+            let Some(arg) = arguments
+                .iter()
+                .find(|a| a.name.eq_ignore_ascii_case(arg_name))
+            else {
                 return fail(format_net(msg::INVALID_ARGUMENT, &[text]));
             };
             if arg.kind == ArgumentType::Boolean {
@@ -234,7 +245,7 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::logger::test_support::{capture, Buf};
+    use crate::logger::test_support::{Buf, capture};
     use ArgumentType::*;
 
     struct Dummy;
@@ -278,7 +289,9 @@ mod tests {
     #[test]
     fn parses_args_case_insensitive_with_both_prefixes() {
         let p = parser();
-        let (n, a) = p.parse(&sv(&["doIt", "-NAME", "x", "/Force", "-opt", "y"])).unwrap();
+        let (n, a) = p
+            .parse(&sv(&["doIt", "-NAME", "x", "/Force", "-opt", "y"]))
+            .unwrap();
         assert_eq!(n, "doIt");
         assert_eq!(a.get("name"), Some("x"));
         assert!(a.flag("force"));
@@ -292,8 +305,14 @@ mod tests {
         assert_eq!(err(&["doIt", "x"]), "'x' is an invalid argument.");
         assert_eq!(err(&["doIt", "-nope"]), "'-nope' is an invalid argument.");
         assert_eq!(err(&["doIt", "-name"]), "'-name' requires a value.");
-        assert_eq!(err(&["doIt", "-name", "-force"]), "'-name' requires a value.");
-        assert_eq!(err(&["doIt", "-force"]), "Missing required argument: 'name'.");
+        assert_eq!(
+            err(&["doIt", "-name", "-force"]),
+            "'-name' requires a value."
+        );
+        assert_eq!(
+            err(&["doIt", "-force"]),
+            "Missing required argument: 'name'."
+        );
     }
 
     #[test]

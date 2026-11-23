@@ -69,7 +69,13 @@ fn decode_text(b: &[u8]) -> String {
     let utf16 = |rest: &[u8], le: bool| {
         let units: Vec<u16> = rest
             .chunks_exact(2)
-            .map(|c| if le { u16::from_le_bytes([c[0], c[1]]) } else { u16::from_be_bytes([c[0], c[1]]) })
+            .map(|c| {
+                if le {
+                    u16::from_le_bytes([c[0], c[1]])
+                } else {
+                    u16::from_be_bytes([c[0], c[1]])
+                }
+            })
             .collect();
         String::from_utf16_lossy(&units)
     };
@@ -96,7 +102,11 @@ pub fn extract(vsix: &Path, part: &str, out: &Path) -> Result<bool, String> {
 }
 
 fn ensure_leading_slash(p: &str) -> String {
-    if p.starts_with('/') { p.to_string() } else { format!("/{p}") }
+    if p.starts_with('/') {
+        p.to_string()
+    } else {
+        format!("/{p}")
+    }
 }
 
 fn normalize_icon(v: &str) -> String {
@@ -104,11 +114,13 @@ fn normalize_icon(v: &str) -> String {
 }
 
 fn child<'a>(e: &'a Element, ns: &'a str, name: &'a str) -> Result<&'a Element, String> {
-    e.element(ns, name).ok_or_else(|| format!("The '{name}' element is missing from the vsixmanifest."))
+    e.element(ns, name)
+        .ok_or_else(|| format!("The '{name}' element is missing from the vsixmanifest."))
 }
 
 fn attr<'a>(e: &'a Element, name: &str) -> Result<&'a str, String> {
-    e.attr(name).ok_or_else(|| format!("The '{name}' attribute is missing on '{}'.", e.name))
+    e.attr(name)
+        .ok_or_else(|| format!("The '{name}' attribute is missing on '{}'.", e.name))
 }
 
 fn version(v: &str) -> Result<Version, String> {
@@ -121,16 +133,26 @@ fn range(v: &str) -> Result<VersionRange, String> {
 
 fn tags(e: &Element, ns: &str) -> Option<Vec<String>> {
     e.element(ns, "Tags").map(|t| {
-        t.value().split(';').filter(|s| !s.is_empty()).map(str::to_string).collect()
+        t.value()
+            .split(';')
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect()
     })
 }
 
 fn icon(e: &Element, ns: &str) -> Option<String> {
-    e.element(ns, "Icon").map(Element::value).filter(|v| !v.is_empty()).map(|v| normalize_icon(&v))
+    e.element(ns, "Icon")
+        .map(Element::value)
+        .filter(|v| !v.is_empty())
+        .map(|v| normalize_icon(&v))
 }
 
 /// Port of `Identity.Create`.
-pub fn identity_from_manifest(content: &str, internal_name: Option<&str>) -> Result<Identity, String> {
+pub fn identity_from_manifest(
+    content: &str,
+    internal_name: Option<&str>,
+) -> Result<Identity, String> {
     let internal_name = internal_name
         .filter(|n| !n.is_empty())
         .ok_or("The internal name of the extension is required.")?;
@@ -174,7 +196,10 @@ fn from_package_manifest(root: &Element) -> Result<Identity, String> {
 fn from_vsix_manifest(root: &Element) -> Result<Identity, String> {
     let ident = child(root, NS_2010, "Identifier")?;
     let locale = child(ident, NS_2010, "Locale")?.value();
-    let lcid: u32 = locale.trim().parse().map_err(|_| format!("Locale '{locale}' is not valid."))?;
+    let lcid: u32 = locale
+        .trim()
+        .parse()
+        .map_err(|_| format!("Locale '{locale}' is not valid."))?;
     let language = culture_name_for_lcid(lcid)
         .ok_or_else(|| format!("Culture is not supported. Parameter name: culture {lcid} is an invalid culture identifier."))?;
     let mut targets = Vec::new();
@@ -202,18 +227,70 @@ fn from_vsix_manifest(root: &Element) -> Result<Identity, String> {
 }
 
 const LCIDS: &[(u32, &str)] = &[
-    (127, ""), (1025, "ar-SA"), (1026, "bg-BG"), (1027, "ca-ES"), (1028, "zh-TW"), (1029, "cs-CZ"),
-    (1030, "da-DK"), (1031, "de-DE"), (1032, "el-GR"), (1033, "en-US"), (1035, "fi-FI"),
-    (1036, "fr-FR"), (1037, "he-IL"), (1038, "hu-HU"), (1039, "is-IS"), (1040, "it-IT"),
-    (1041, "ja-JP"), (1042, "ko-KR"), (1043, "nl-NL"), (1044, "nb-NO"), (1045, "pl-PL"),
-    (1046, "pt-BR"), (1048, "ro-RO"), (1049, "ru-RU"), (1050, "hr-HR"), (1051, "sk-SK"),
-    (1053, "sv-SE"), (1054, "th-TH"), (1055, "tr-TR"), (1057, "id-ID"), (1058, "uk-UA"),
-    (1060, "sl-SI"), (1061, "et-EE"), (1062, "lv-LV"), (1063, "lt-LT"), (1066, "vi-VN"),
-    (1081, "hi-IN"), (2052, "zh-CN"), (2057, "en-GB"), (2058, "es-MX"), (2070, "pt-PT"),
-    (3076, "zh-HK"), (3081, "en-AU"), (3082, "es-ES"), (3084, "fr-CA"), (4105, "en-CA"),
-    (5129, "en-NZ"), (6153, "en-IE"), (2055, "de-CH"), (3079, "de-AT"), (2067, "nl-BE"),
-    (2060, "fr-BE"), (4108, "fr-CH"), (9, "en"), (7, "de"), (12, "fr"), (10, "es"), (16, "it"),
-    (17, "ja"), (18, "ko"), (22, "pt"), (25, "ru"), (4, "zh-Hans"), (31748, "zh-Hant"),
+    (127, ""),
+    (1025, "ar-SA"),
+    (1026, "bg-BG"),
+    (1027, "ca-ES"),
+    (1028, "zh-TW"),
+    (1029, "cs-CZ"),
+    (1030, "da-DK"),
+    (1031, "de-DE"),
+    (1032, "el-GR"),
+    (1033, "en-US"),
+    (1035, "fi-FI"),
+    (1036, "fr-FR"),
+    (1037, "he-IL"),
+    (1038, "hu-HU"),
+    (1039, "is-IS"),
+    (1040, "it-IT"),
+    (1041, "ja-JP"),
+    (1042, "ko-KR"),
+    (1043, "nl-NL"),
+    (1044, "nb-NO"),
+    (1045, "pl-PL"),
+    (1046, "pt-BR"),
+    (1048, "ro-RO"),
+    (1049, "ru-RU"),
+    (1050, "hr-HR"),
+    (1051, "sk-SK"),
+    (1053, "sv-SE"),
+    (1054, "th-TH"),
+    (1055, "tr-TR"),
+    (1057, "id-ID"),
+    (1058, "uk-UA"),
+    (1060, "sl-SI"),
+    (1061, "et-EE"),
+    (1062, "lv-LV"),
+    (1063, "lt-LT"),
+    (1066, "vi-VN"),
+    (1081, "hi-IN"),
+    (2052, "zh-CN"),
+    (2057, "en-GB"),
+    (2058, "es-MX"),
+    (2070, "pt-PT"),
+    (3076, "zh-HK"),
+    (3081, "en-AU"),
+    (3082, "es-ES"),
+    (3084, "fr-CA"),
+    (4105, "en-CA"),
+    (5129, "en-NZ"),
+    (6153, "en-IE"),
+    (2055, "de-CH"),
+    (3079, "de-AT"),
+    (2067, "nl-BE"),
+    (2060, "fr-BE"),
+    (4108, "fr-CH"),
+    (9, "en"),
+    (7, "de"),
+    (12, "fr"),
+    (10, "es"),
+    (16, "it"),
+    (17, "ja"),
+    (18, "ko"),
+    (22, "pt"),
+    (25, "ru"),
+    (4, "zh-Hans"),
+    (31748, "zh-Hant"),
 ];
 
 pub fn culture_name_for_lcid(lcid: u32) -> Option<&'static str> {
@@ -225,7 +302,10 @@ pub fn is_valid_culture(s: &str) -> bool {
     if let Ok(n) = s.trim().parse::<u32>() {
         return culture_name_for_lcid(n).is_some();
     }
-    let re = regex::Regex::new(r"^[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?(-[A-Za-z0-9]{5,8})*$").unwrap();
+    let re = regex::Regex::new(
+        r"^[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?(-[A-Za-z0-9]{5,8})*$",
+    )
+    .unwrap();
     re.is_match(s)
 }
 
@@ -269,7 +349,8 @@ pub mod test_support {
         let f = std::fs::File::create(path).unwrap();
         let mut z = zip::ZipWriter::new(f);
         for (n, b) in files {
-            z.start_file(*n, zip::write::SimpleFileOptions::default()).unwrap();
+            z.start_file(*n, zip::write::SimpleFileOptions::default())
+                .unwrap();
             z.write_all(b).unwrap();
         }
         z.finish().unwrap();
@@ -305,7 +386,10 @@ mod tests {
         assert_eq!(id.language.as_deref(), Some("en-US"));
         assert_eq!(id.display_name.as_deref(), Some("Old Ext"));
         let t = id.install_targets.unwrap();
-        assert_eq!(t.iter().map(|t| t.sku).collect::<Vec<_>>(), vec![VisualStudioSku::Pro, VisualStudioSku::Ultimate]);
+        assert_eq!(
+            t.iter().map(|t| t.sku).collect::<Vec<_>>(),
+            vec![VisualStudioSku::Pro, VisualStudioSku::Ultimate]
+        );
     }
 
     #[test]
@@ -318,9 +402,19 @@ mod tests {
     fn reads_and_extracts_parts() {
         let dir = tempfile::tempdir().unwrap();
         let vsix = dir.path().join("a.vsix");
-        write_vsix(&vsix, &[("extension.vsixmanifest", V2_MANIFEST.as_bytes()), ("Resources/icon%20x.png", b"PNG")]);
+        write_vsix(
+            &vsix,
+            &[
+                ("extension.vsixmanifest", V2_MANIFEST.as_bytes()),
+                ("Resources/icon%20x.png", b"PNG"),
+            ],
+        );
         let mut z = open(&vsix).unwrap();
-        assert!(manifest_content(&mut z).unwrap().contains("PackageManifest"));
+        assert!(
+            manifest_content(&mut z)
+                .unwrap()
+                .contains("PackageManifest")
+        );
         let out = dir.path().join("icon");
         assert!(extract(&vsix, "/resources/icon x.png", &out).unwrap());
         assert_eq!(std::fs::read(&out).unwrap(), b"PNG");

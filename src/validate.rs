@@ -20,15 +20,26 @@ fn len16(s: &str) -> usize {
 
 pub fn resolve(base: &Path, p: &str) -> std::path::PathBuf {
     let path = Path::new(p);
-    if path.is_absolute() { path.to_path_buf() } else { base.join(path) }
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        base.join(path)
+    }
 }
 
 pub fn is_http_url(s: &str) -> bool {
-    reqwest::Url::parse(s).map(|u| u.scheme() == "http" || u.scheme() == "https").unwrap_or(false)
+    reqwest::Url::parse(s)
+        .map(|u| u.scheme() == "http" || u.scheme() == "https")
+        .unwrap_or(false)
 }
 
 /// Validates (and normalizes tags of) the manifest. `manifest_path` is used in messages.
-pub fn validate(m: &mut PublishManifest, base_path: &Path, manifest_path: &str, log: &mut Logger) -> bool {
+pub fn validate(
+    m: &mut PublishManifest,
+    base_path: &Path,
+    manifest_path: &str,
+    log: &mut Logger,
+) -> bool {
     if m.publisher.as_deref().unwrap_or_default().is_empty() {
         log.error(msg::MANIFEST_MISSING_PUBLISHER, &[&manifest_path]);
         return false;
@@ -43,7 +54,10 @@ pub fn validate(m: &mut PublishManifest, base_path: &Path, manifest_path: &str, 
         log.error(msg::TOO_MANY_OR_TOO_FEW_CATEGORIES, &[&MAX_CATEGORIES]);
         return false;
     }
-    let id = m.identity.as_mut().expect("identity resolved before validation");
+    let id = m
+        .identity
+        .as_mut()
+        .expect("identity resolved before validation");
     if let Some(tags) = id.tags.take() {
         let mut bad = false;
         let mut kept = Vec::new();
@@ -133,7 +147,11 @@ mod tests {
         let mut m = valid(dir);
         f(&mut m);
         let (mut log, _, _) = capture();
-        if validate(&mut m, dir, "m.json", &mut log) { 0 } else { log.last_error_code_or(-1) }
+        if validate(&mut m, dir, "m.json", &mut log) {
+            0
+        } else {
+            log.last_error_code_or(-1)
+        }
     }
 
     #[test]
@@ -152,7 +170,10 @@ mod tests {
         assert_eq!(code(p, |m| m.publisher = None), 5);
         assert_eq!(code(p, |m| m.overview = Some("missing.md".into())), 9);
         assert_eq!(code(p, |m| m.categories = Some(vec![])), 21);
-        assert_eq!(code(p, |m| m.categories = Some(vec![Category::Coding; 4])), 21);
+        assert_eq!(
+            code(p, |m| m.categories = Some(vec![Category::Coding; 4])),
+            21
+        );
         assert_eq!(code(p, |m| idm(m).tags = Some(vec!["x".repeat(51)])), 23);
         assert_eq!(code(p, |m| idm(m).description = Some("x".repeat(281))), 24);
         assert_eq!(code(p, |m| idm(m).language = Some("klingon!".into())), 25);

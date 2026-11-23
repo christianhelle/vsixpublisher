@@ -170,20 +170,34 @@ impl VisualStudioSku {
         use VisualStudioSku::*;
         Ok(match name.to_lowercase().as_str() {
             "integrated" | "microsoft.visualstudio.integratedshell" => IntegratedShell,
-            "community" | "microsoft.visualstudio.community" | "microsoft.visualstudio.communityx86" => Community,
-            "microsoft.visualstudio.professionalx86" | "microsoft.visualstudio.professional" | "pro"
-            | "professional" | "microsoft.visualstudio.pro" => Pro,
+            "community"
+            | "microsoft.visualstudio.community"
+            | "microsoft.visualstudio.communityx86" => Community,
+            "microsoft.visualstudio.professionalx86"
+            | "microsoft.visualstudio.professional"
+            | "pro"
+            | "professional"
+            | "microsoft.visualstudio.pro" => Pro,
             "premium" | "microsoft.visualstudio.premium" => Premium,
-            "enterprise" | "microsoft.visualstudio.enterprise" | "microsoft.visualstudio.enterprisex86" => Enterprise,
-            "winexpress" | "microsoft.visualstudio.vswinexpress" | "win" | "vswinexpress" => VSWinExpress,
-            "vwdexpress" | "webexpress" | "vwd" | "microsoft.visualstudio.vwdexpress"
+            "enterprise"
+            | "microsoft.visualstudio.enterprise"
+            | "microsoft.visualstudio.enterprisex86" => Enterprise,
+            "winexpress" | "microsoft.visualstudio.vswinexpress" | "win" | "vswinexpress" => {
+                VSWinExpress
+            }
+            "vwdexpress"
+            | "webexpress"
+            | "vwd"
+            | "microsoft.visualstudio.vwdexpress"
             | "microsoft.visualstudio.webexpress" => WebExpress,
-            "windesktop" | "windesktopexpress" | "vswindesktopexpress"
+            "windesktop"
+            | "windesktopexpress"
+            | "vswindesktopexpress"
             | "microsoft.visualstudio.vswindesktopexpress" => VSWinDesktopExpress,
             "express_all" | "microsoft.visualstudio.express_all" => ExpressAll,
-            "microsoft.visualstudio.test" | "testprofessional" | "microsoft.visualstudio.testprofessional" => {
-                TestProfessional
-            }
+            "microsoft.visualstudio.test"
+            | "testprofessional"
+            | "microsoft.visualstudio.testprofessional" => TestProfessional,
             "vbexpress" | "microsoft.visualstudio.vbexpress" => VBExpress,
             "vcexpress" | "microsoft.visualstudio.vcexpress" => VCExpress,
             "vcsexpress" | "microsoft.visualstudio.vcsexpress" => VCSExpress,
@@ -226,10 +240,22 @@ mod tests {
     #[test]
     fn category_aliases() {
         assert_eq!(Category::parse("Coding").unwrap(), Category::Coding);
-        assert_eq!(Category::parse("Setup & Deployment").unwrap(), Category::SetupAndDeployment);
-        assert_eq!(Category::parse("Framework and Libraries").unwrap(), Category::FrameworkAndLibraries);
-        assert_eq!(Category::parse("other").unwrap().server_name(), "othertools");
-        assert_eq!(Category::parse("services").unwrap().server_name(), "tools_services");
+        assert_eq!(
+            Category::parse("Setup & Deployment").unwrap(),
+            Category::SetupAndDeployment
+        );
+        assert_eq!(
+            Category::parse("Framework and Libraries").unwrap(),
+            Category::FrameworkAndLibraries
+        );
+        assert_eq!(
+            Category::parse("other").unwrap().server_name(),
+            "othertools"
+        );
+        assert_eq!(
+            Category::parse("services").unwrap().server_name(),
+            "tools_services"
+        );
         assert_eq!(
             Category::parse("bogus").unwrap_err(),
             "Encountered an unsupported category: bogus."
@@ -246,10 +272,28 @@ mod tests {
 
     #[test]
     fn sku_mapping() {
-        assert_eq!(VisualStudioSku::parse("Microsoft.VisualStudio.Pro").unwrap(), VisualStudioSku::Pro);
-        assert_eq!(VisualStudioSku::parse("community").unwrap().fully_qualified_name(), "Microsoft.VisualStudio.Community");
-        assert_eq!(VisualStudioSku::parse("webexpress").unwrap().fully_qualified_name(), "Microsoft.VisualStudio.VWDExpress");
-        assert_eq!(VisualStudioSku::parse("testprofessional").unwrap().fully_qualified_name(), "Microsoft.VisualStudio.Test");
+        assert_eq!(
+            VisualStudioSku::parse("Microsoft.VisualStudio.Pro").unwrap(),
+            VisualStudioSku::Pro
+        );
+        assert_eq!(
+            VisualStudioSku::parse("community")
+                .unwrap()
+                .fully_qualified_name(),
+            "Microsoft.VisualStudio.Community"
+        );
+        assert_eq!(
+            VisualStudioSku::parse("webexpress")
+                .unwrap()
+                .fully_qualified_name(),
+            "Microsoft.VisualStudio.VWDExpress"
+        );
+        assert_eq!(
+            VisualStudioSku::parse("testprofessional")
+                .unwrap()
+                .fully_qualified_name(),
+            "Microsoft.VisualStudio.Test"
+        );
         assert!(VisualStudioSku::parse("Microsoft.VisualStudio.Foo").is_err());
     }
 }

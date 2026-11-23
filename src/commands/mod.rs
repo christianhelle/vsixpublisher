@@ -15,7 +15,9 @@ pub(crate) fn connect(
     url: &Url,
     log: &mut Logger,
 ) -> Result<Box<dyn MarketplaceClient>, i32> {
-    factory.create(pat, url, log).ok_or_else(|| log.last_error_code_or(-1))
+    factory
+        .create(pat, url, log)
+        .ok_or_else(|| log.last_error_code_or(-1))
 }
 
 #[cfg(test)]
@@ -44,7 +46,12 @@ pub(crate) mod fake {
     pub struct Fake(pub Rc<RefCell<State>>);
 
     impl ClientFactory for Fake {
-        fn create(&self, pat: &str, _url: &Url, log: &mut Logger) -> Option<Box<dyn MarketplaceClient>> {
+        fn create(
+            &self,
+            pat: &str,
+            _url: &Url,
+            log: &mut Logger,
+        ) -> Option<Box<dyn MarketplaceClient>> {
             self.0.borrow_mut().pat = Some(pat.to_string());
             if self.0.borrow().auth_fails {
                 log.error(crate::messages::COULD_NOT_AUTHENTICATE, &[&"bad"]);
@@ -60,28 +67,56 @@ pub(crate) mod fake {
             self.0.borrow().publisher.clone()
         }
         fn delete_publisher(&self, p: &str, _: &mut Logger) -> bool {
-            self.0.borrow_mut().calls.push(format!("delete_publisher {p}"));
+            self.0
+                .borrow_mut()
+                .calls
+                .push(format!("delete_publisher {p}"));
             self.0.borrow().delete_publisher_ok
         }
         fn get_extension(&self, p: &str, e: &str, _: &mut Logger) -> GetExtension {
-            self.0.borrow_mut().calls.push(format!("get_extension {p} {e}"));
-            self.0.borrow().get_extension.clone().unwrap_or(GetExtension::NotFound)
+            self.0
+                .borrow_mut()
+                .calls
+                .push(format!("get_extension {p} {e}"));
+            self.0
+                .borrow()
+                .get_extension
+                .clone()
+                .unwrap_or(GetExtension::NotFound)
         }
-        fn create_extension(&self, pkg: &[u8], p: &str, _: &mut Logger) -> Result<Option<ExtensionResponse>, String> {
+        fn create_extension(
+            &self,
+            pkg: &[u8],
+            p: &str,
+            _: &mut Logger,
+        ) -> Result<Option<ExtensionResponse>, String> {
             let mut s = self.0.borrow_mut();
             s.calls.push(format!("create_extension {p}"));
             s.uploaded = pkg.to_vec();
             Ok(s.upload.clone())
         }
-        fn update_extension(&self, pkg: &[u8], p: &str, e: &str, _: &mut Logger) -> Result<Option<ExtensionResponse>, String> {
+        fn update_extension(
+            &self,
+            pkg: &[u8],
+            p: &str,
+            e: &str,
+            _: &mut Logger,
+        ) -> Result<Option<ExtensionResponse>, String> {
             let mut s = self.0.borrow_mut();
             s.calls.push(format!("update_extension {p} {e}"));
             s.uploaded = pkg.to_vec();
             Ok(s.upload.clone())
         }
         fn delete_extension(&self, p: &str, e: &str, log: &mut Logger) -> DeleteResult {
-            self.0.borrow_mut().calls.push(format!("delete_extension {p} {e}"));
-            let r = self.0.borrow().delete_extension.unwrap_or(DeleteResult::Success);
+            self.0
+                .borrow_mut()
+                .calls
+                .push(format!("delete_extension {p} {e}"));
+            let r = self
+                .0
+                .borrow()
+                .delete_extension
+                .unwrap_or(DeleteResult::Success);
             if r == DeleteResult::NotFound {
                 log.error(crate::messages::EXTENSION_NOT_FOUND, &[&e, &p]);
             }
@@ -92,7 +127,10 @@ pub(crate) mod fake {
     pub fn args(pairs: &[(&'static str, Option<&str>)]) -> Args {
         let mut a = Args::default();
         for (k, v) in pairs {
-            a.insert(k, v.map_or(ArgValue::Flag, |v| ArgValue::Value(v.to_string())));
+            a.insert(
+                k,
+                v.map_or(ArgValue::Flag, |v| ArgValue::Value(v.to_string())),
+            );
         }
         a
     }

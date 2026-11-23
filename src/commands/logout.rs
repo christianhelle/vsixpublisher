@@ -14,8 +14,17 @@ pub struct LogoutCommand {
 impl Command for LogoutCommand {
     fn arguments(&self) -> Vec<Argument> {
         vec![
-            Argument::new("publisherName", NonBoolean, msg::LOGOUT_ARGUMENT_PUBLISHER_NAME).required(),
-            Argument::new("ignoreMissingPublisher", Boolean, msg::LOGOUT_ARGUMENT_IGNORE_MISSING_PUBLISHER),
+            Argument::new(
+                "publisherName",
+                NonBoolean,
+                msg::LOGOUT_ARGUMENT_PUBLISHER_NAME,
+            )
+            .required(),
+            Argument::new(
+                "ignoreMissingPublisher",
+                Boolean,
+                msg::LOGOUT_ARGUMENT_IGNORE_MISSING_PUBLISHER,
+            ),
         ]
     }
 
@@ -63,16 +72,23 @@ mod tests {
         let path = dir.path().join(".vsce");
         let (mut log, out, _) = capture();
         PublisherDb::new(&path).add("me", "pat", false, &mut log);
-        let cmd = LogoutCommand { db_path: path.clone() };
+        let cmd = LogoutCommand {
+            db_path: path.clone(),
+        };
         assert_eq!(cmd.execute(&args("me", false), &mut log), 0);
-        assert_eq!(out.text(), "VSSDK: information VsixPub0042 : Publisher 'me' has been logged-out.\n");
+        assert_eq!(
+            out.text(),
+            "VSSDK: information VsixPub0042 : Publisher 'me' has been logged-out.\n"
+        );
         assert!(!path.exists());
     }
 
     #[test]
     fn unknown_publisher_fails_unless_ignored() {
         let dir = tempfile::tempdir().unwrap();
-        let cmd = LogoutCommand { db_path: dir.path().join(".vsce") };
+        let cmd = LogoutCommand {
+            db_path: dir.path().join(".vsce"),
+        };
         let (mut log, _, _) = capture();
         assert_eq!(cmd.execute(&args("me", true), &mut log), 0);
         assert_eq!(cmd.execute(&args("me", false), &mut log), 14);

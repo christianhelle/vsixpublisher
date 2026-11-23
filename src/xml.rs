@@ -1,8 +1,8 @@
 //! Minimal namespace-aware XML DOM (enough for `XDocument`-style lookups).
 
+use quick_xml::NsReader;
 use quick_xml::events::Event;
 use quick_xml::name::ResolveResult;
-use quick_xml::NsReader;
 
 #[derive(Debug, Clone, Default)]
 pub struct Element {
@@ -28,7 +28,11 @@ impl Element {
         self.elements(ns, name).next()
     }
 
-    pub fn elements<'a>(&'a self, ns: &'a str, name: &'a str) -> impl Iterator<Item = &'a Element> + 'a {
+    pub fn elements<'a>(
+        &'a self,
+        ns: &'a str,
+        name: &'a str,
+    ) -> impl Iterator<Item = &'a Element> + 'a {
         self.children.iter().filter_map(move |c| match c {
             Node::Element(e) if e.is(ns, name) => Some(e),
             _ => None,
@@ -36,7 +40,10 @@ impl Element {
     }
 
     pub fn attr(&self, name: &str) -> Option<&str> {
-        self.attrs.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
+        self.attrs
+            .iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.as_str())
     }
 
     /// `XElement.Value`: concatenated descendant text.
@@ -69,24 +76,26 @@ pub fn parse(text: &str) -> Result<Element, String> {
     let mut stack: Vec<Element> = Vec::new();
     let mut root: Option<Element> = None;
 
-    let start = |reader: &NsReader<&[u8]>, e: &quick_xml::events::BytesStart| -> Result<Element, String> {
-        let (ns, local) = reader.resolve_element(e.name());
-        let mut el = Element {
-            ns: ns_of(ns),
-            name: String::from_utf8_lossy(local.as_ref()).into_owned(),
-            ..Default::default()
-        };
-        for a in e.attributes() {
-            let a = a.map_err(|e| e.to_string())?;
-            let key = a.key;
-            if key.as_ref().starts_with(b"xmlns") || key.prefix().is_some() {
-                continue;
+    let start =
+        |reader: &NsReader<&[u8]>, e: &quick_xml::events::BytesStart| -> Result<Element, String> {
+            let (ns, local) = reader.resolve_element(e.name());
+            let mut el = Element {
+                ns: ns_of(ns),
+                name: String::from_utf8_lossy(local.as_ref()).into_owned(),
+                ..Default::default()
+            };
+            for a in e.attributes() {
+                let a = a.map_err(|e| e.to_string())?;
+                let key = a.key;
+                if key.as_ref().starts_with(b"xmlns") || key.prefix().is_some() {
+                    continue;
+                }
+                let v = a.unescape_value().map_err(|e| e.to_string())?.into_owned();
+                el.attrs
+                    .push((String::from_utf8_lossy(key.as_ref()).into_owned(), v));
             }
-            let v = a.unescape_value().map_err(|e| e.to_string())?.into_owned();
-            el.attrs.push((String::from_utf8_lossy(key.as_ref()).into_owned(), v));
-        }
-        Ok(el)
-    };
+            Ok(el)
+        };
 
     loop {
         match reader.read_event().map_err(|e| e.to_string())? {
@@ -110,12 +119,15 @@ pub fn parse(text: &str) -> Result<Element, String> {
             }
             Event::Text(t) => {
                 if let Some(p) = stack.last_mut() {
-                    p.children.push(Node::Text(t.unescape().map_err(|e| e.to_string())?.into_owned()));
+                    p.children.push(Node::Text(
+                        t.unescape().map_err(|e| e.to_string())?.into_owned(),
+                    ));
                 }
             }
             Event::CData(t) => {
                 if let Some(p) = stack.last_mut() {
-                    p.children.push(Node::Text(String::from_utf8_lossy(&t).into_owned()));
+                    p.children
+                        .push(Node::Text(String::from_utf8_lossy(&t).into_owned()));
                 }
             }
             Event::Eof => break,

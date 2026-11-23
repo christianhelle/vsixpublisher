@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use crate::cli::{Args, Argument, ArgumentType::*, Command};
-use crate::client::{parse_marketplace_url, ClientFactory, DeleteResult};
+use crate::client::{ClientFactory, DeleteResult, parse_marketplace_url};
 use crate::db::PublisherDb;
 use crate::logger::Logger;
 use crate::messages as msg;
@@ -16,9 +16,23 @@ pub struct DeleteExtensionCommand {
 impl Command for DeleteExtensionCommand {
     fn arguments(&self) -> Vec<Argument> {
         vec![
-            Argument::new("publisherName", NonBoolean, msg::DELETE_EXTENSION_ARGUMENT_PUBLISHER_NAME).required(),
-            Argument::new("extensionName", NonBoolean, msg::DELETE_EXTENSION_ARGUMENT_EXTENSION_NAME).required(),
-            Argument::new("personalAccessToken", NonBoolean, msg::ARGUMENT_PERSONAL_ACCESS_TOKEN),
+            Argument::new(
+                "publisherName",
+                NonBoolean,
+                msg::DELETE_EXTENSION_ARGUMENT_PUBLISHER_NAME,
+            )
+            .required(),
+            Argument::new(
+                "extensionName",
+                NonBoolean,
+                msg::DELETE_EXTENSION_ARGUMENT_EXTENSION_NAME,
+            )
+            .required(),
+            Argument::new(
+                "personalAccessToken",
+                NonBoolean,
+                msg::ARGUMENT_PERSONAL_ACCESS_TOKEN,
+            ),
             Argument::new("marketplaceUrl", NonBoolean, msg::ARGUMENT_MARKETPLACE_URL).hidden(),
         ]
     }
@@ -54,7 +68,7 @@ impl Command for DeleteExtensionCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::fake::{args, Fake};
+    use crate::commands::fake::{Fake, args};
     use crate::logger::test_support::capture;
 
     #[test]
@@ -64,21 +78,36 @@ mod tests {
         let (mut log, out, _) = capture();
         PublisherDb::new(&db).add("me", "stored", false, &mut log);
         let fake = Fake::default();
-        let cmd = DeleteExtensionCommand { db_path: db, factory: Box::new(fake.clone()) };
-        let a = args(&[("publisherName", Some("me")), ("extensionName", Some("ext"))]);
+        let cmd = DeleteExtensionCommand {
+            db_path: db,
+            factory: Box::new(fake.clone()),
+        };
+        let a = args(&[
+            ("publisherName", Some("me")),
+            ("extensionName", Some("ext")),
+        ]);
         assert_eq!(cmd.execute(&a, &mut log), 0);
         assert_eq!(fake.0.borrow().pat.as_deref(), Some("stored"));
         assert_eq!(fake.0.borrow().calls, vec!["delete_extension me ext"]);
-        assert_eq!(out.text(), "VSSDK: information VsixPub0037 : Removed 'ext' from the marketplace.\n");
+        assert_eq!(
+            out.text(),
+            "VSSDK: information VsixPub0037 : Removed 'ext' from the marketplace.\n"
+        );
     }
 
     #[test]
     fn missing_pat_and_not_found() {
         let dir = tempfile::tempdir().unwrap();
         let fake = Fake::default();
-        let cmd = DeleteExtensionCommand { db_path: dir.path().join(".vsce"), factory: Box::new(fake.clone()) };
+        let cmd = DeleteExtensionCommand {
+            db_path: dir.path().join(".vsce"),
+            factory: Box::new(fake.clone()),
+        };
         let (mut log, _, _) = capture();
-        let a = args(&[("publisherName", Some("me")), ("extensionName", Some("ext"))]);
+        let a = args(&[
+            ("publisherName", Some("me")),
+            ("extensionName", Some("ext")),
+        ]);
         assert_eq!(cmd.execute(&a, &mut log), 7);
         fake.0.borrow_mut().delete_extension = Some(DeleteResult::NotFound);
         let a = args(&[

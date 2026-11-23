@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use crate::cli::{Args, Argument, ArgumentType::*, Command};
-use crate::client::{parse_marketplace_url, ClientFactory};
+use crate::client::{ClientFactory, parse_marketplace_url};
 use crate::db::PublisherDb;
 use crate::logger::Logger;
 use crate::messages as msg;
@@ -16,8 +16,18 @@ pub struct DeletePublisherCommand {
 impl Command for DeletePublisherCommand {
     fn arguments(&self) -> Vec<Argument> {
         vec![
-            Argument::new("publisherName", NonBoolean, msg::DELETE_PUBLISHER_ARGUMENT_PUBLISHER_NAME).required(),
-            Argument::new("personalAccessToken", NonBoolean, msg::ARGUMENT_PERSONAL_ACCESS_TOKEN).required(),
+            Argument::new(
+                "publisherName",
+                NonBoolean,
+                msg::DELETE_PUBLISHER_ARGUMENT_PUBLISHER_NAME,
+            )
+            .required(),
+            Argument::new(
+                "personalAccessToken",
+                NonBoolean,
+                msg::ARGUMENT_PERSONAL_ACCESS_TOKEN,
+            )
+            .required(),
             Argument::new("marketplaceUrl", NonBoolean, msg::ARGUMENT_MARKETPLACE_URL).hidden(),
         ]
     }
@@ -50,7 +60,7 @@ impl Command for DeletePublisherCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::fake::{args, Fake};
+    use crate::commands::fake::{Fake, args};
     use crate::logger::test_support::capture;
 
     #[test]
@@ -61,12 +71,18 @@ mod tests {
         PublisherDb::new(&db).add("me", "p", false, &mut log);
         let fake = Fake::default();
         fake.0.borrow_mut().delete_publisher_ok = true;
-        let cmd = DeletePublisherCommand { db_path: db.clone(), factory: Box::new(fake.clone()) };
-        let a = args(&[("publisherName", Some("me")), ("personalAccessToken", Some("p"))]);
+        let cmd = DeletePublisherCommand {
+            db_path: db.clone(),
+            factory: Box::new(fake.clone()),
+        };
+        let a = args(&[
+            ("publisherName", Some("me")),
+            ("personalAccessToken", Some("p")),
+        ]);
         assert_eq!(cmd.execute(&a, &mut log), 0);
         assert!(!db.exists());
-        assert!(out
-            .text()
-            .ends_with("VSSDK: information VsixPub0040 : Removed 'me' as a publisher on the marketplace.\n"));
+        assert!(out.text().ends_with(
+            "VSSDK: information VsixPub0040 : Removed 'me' as a publisher on the marketplace.\n"
+        ));
     }
 }

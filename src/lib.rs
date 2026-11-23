@@ -1,24 +1,24 @@
-pub mod logger;
-pub mod messages;
 pub mod cli;
-pub mod version;
-pub mod enums;
-pub mod manifest;
-pub mod db;
-pub mod commands;
 pub mod client;
-pub mod xml;
-pub mod vsix;
-pub mod validate;
+pub mod commands;
+pub mod db;
+pub mod enums;
+pub mod logger;
+pub mod manifest;
 pub mod marketplace_manifest;
-pub mod package;
+pub mod messages;
 pub mod oidc;
+pub mod package;
+pub mod validate;
+pub mod version;
+pub mod vsix;
+pub mod xml;
 
 use cli::Parser;
 use client::HttpClientFactory;
 use commands::{
-    delete_extension::DeleteExtensionCommand, delete_publisher::DeletePublisherCommand, login::LoginCommand,
-    logout::LogoutCommand, publish::PublishCommand,
+    delete_extension::DeleteExtensionCommand, delete_publisher::DeletePublisherCommand,
+    login::LoginCommand, logout::LogoutCommand, publish::PublishCommand,
 };
 
 /// Builds the parser with all commands, mirroring `Program.Main`.
@@ -35,11 +35,31 @@ pub fn parser() -> Parser {
     );
     p.add(
         "deleteExtension",
-        Box::new(DeleteExtensionCommand { db_path: db.clone(), factory: Box::new(HttpClientFactory) }),
+        Box::new(DeleteExtensionCommand {
+            db_path: db.clone(),
+            factory: Box::new(HttpClientFactory),
+        }),
     );
-    p.add("login", Box::new(LoginCommand { db_path: db.clone(), factory: Box::new(HttpClientFactory) }));
-    p.add("logout", Box::new(LogoutCommand { db_path: db.clone() }));
-    p.add("deletePublisher", Box::new(DeletePublisherCommand { db_path: db, factory: Box::new(HttpClientFactory) }));
+    p.add(
+        "login",
+        Box::new(LoginCommand {
+            db_path: db.clone(),
+            factory: Box::new(HttpClientFactory),
+        }),
+    );
+    p.add(
+        "logout",
+        Box::new(LogoutCommand {
+            db_path: db.clone(),
+        }),
+    );
+    p.add(
+        "deletePublisher",
+        Box::new(DeletePublisherCommand {
+            db_path: db,
+            factory: Box::new(HttpClientFactory),
+        }),
+    );
     p
 }
 

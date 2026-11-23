@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use crate::cli::{Args, Argument, ArgumentType::*, Command};
-use crate::client::{parse_marketplace_url, ClientFactory};
+use crate::client::{ClientFactory, parse_marketplace_url};
 use crate::db::PublisherDb;
 use crate::logger::Logger;
 use crate::messages as msg;
@@ -16,8 +16,18 @@ pub struct LoginCommand {
 impl Command for LoginCommand {
     fn arguments(&self) -> Vec<Argument> {
         vec![
-            Argument::new("publisherName", NonBoolean, msg::LOGIN_ARGUMENT_PUBLISHER_NAME).required(),
-            Argument::new("personalAccessToken", NonBoolean, msg::ARGUMENT_PERSONAL_ACCESS_TOKEN).required(),
+            Argument::new(
+                "publisherName",
+                NonBoolean,
+                msg::LOGIN_ARGUMENT_PUBLISHER_NAME,
+            )
+            .required(),
+            Argument::new(
+                "personalAccessToken",
+                NonBoolean,
+                msg::ARGUMENT_PERSONAL_ACCESS_TOKEN,
+            )
+            .required(),
             Argument::new("overwrite", Boolean, msg::LOGIN_ARGUMENT_OVERWRITE),
             Argument::new("marketplaceUrl", NonBoolean, msg::ARGUMENT_MARKETPLACE_URL).hidden(),
         ]
@@ -31,7 +41,11 @@ impl Command for LoginCommand {
         if args.get("publisherName").unwrap_or_default().is_empty() {
             return log.error(msg::MISSING_PUBLISHER_NAME, &[&"login"]);
         }
-        if args.get("personalAccessToken").unwrap_or_default().is_empty() {
+        if args
+            .get("personalAccessToken")
+            .unwrap_or_default()
+            .is_empty()
+        {
             return log.error(msg::MISSING_PAT_IN_LOGIN, &[]);
         }
         0
@@ -63,15 +77,21 @@ impl Command for LoginCommand {
 mod tests {
     use super::*;
     use crate::client::MarketplacePublisher;
-    use crate::commands::fake::{args, Fake};
+    use crate::commands::fake::{Fake, args};
     use crate::logger::test_support::capture;
 
     fn cmd(fake: &Fake, dir: &tempfile::TempDir) -> LoginCommand {
-        LoginCommand { db_path: dir.path().join(".vsce"), factory: Box::new(fake.clone()) }
+        LoginCommand {
+            db_path: dir.path().join(".vsce"),
+            factory: Box::new(fake.clone()),
+        }
     }
 
     fn login_args() -> Args {
-        args(&[("publisherName", Some("me")), ("personalAccessToken", Some("pat"))])
+        args(&[
+            ("publisherName", Some("me")),
+            ("personalAccessToken", Some("pat")),
+        ])
     }
 
     #[test]
@@ -81,10 +101,16 @@ mod tests {
         fake.0.borrow_mut().publisher = Some(MarketplacePublisher::default());
         let (mut log, out, _) = capture();
         assert_eq!(cmd(&fake, &dir).execute(&login_args(), &mut log), 0);
-        assert_eq!(out.text(), "VSSDK: information VsixPub0041 : Publisher 'me' is now logged-in.\n");
+        assert_eq!(
+            out.text(),
+            "VSSDK: information VsixPub0041 : Publisher 'me' is now logged-in.\n"
+        );
         assert_eq!(fake.0.borrow().pat.as_deref(), Some("pat"));
         let db = PublisherDb::new(dir.path().join(".vsce"));
-        assert_eq!(db.personal_access_token("me", &mut log).as_deref(), Some("pat"));
+        assert_eq!(
+            db.personal_access_token("me", &mut log).as_deref(),
+            Some("pat")
+        );
         // Second login without -overwrite fails.
         assert_eq!(cmd(&fake, &dir).execute(&login_args(), &mut log), 12);
     }
@@ -93,7 +119,10 @@ mod tests {
     fn unknown_publisher() {
         let dir = tempfile::tempdir().unwrap();
         let (mut log, _, _) = capture();
-        assert_eq!(cmd(&Fake::default(), &dir).execute(&login_args(), &mut log), 30);
+        assert_eq!(
+            cmd(&Fake::default(), &dir).execute(&login_args(), &mut log),
+            30
+        );
     }
 
     #[test]
@@ -110,9 +139,15 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (mut log, _, _) = capture();
         let c = cmd(&Fake::default(), &dir);
-        let a = args(&[("publisherName", Some("")), ("personalAccessToken", Some("p"))]);
+        let a = args(&[
+            ("publisherName", Some("")),
+            ("personalAccessToken", Some("p")),
+        ]);
         assert_eq!(c.validate(&a, &mut log), 10);
-        let a = args(&[("publisherName", Some("a")), ("personalAccessToken", Some(""))]);
+        let a = args(&[
+            ("publisherName", Some("a")),
+            ("personalAccessToken", Some("")),
+        ]);
         assert_eq!(c.validate(&a, &mut log), 11);
     }
 }

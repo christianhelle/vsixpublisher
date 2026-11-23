@@ -127,7 +127,9 @@ fn as_bool(v: Option<&Value>, default: bool, what: &str) -> R<bool> {
         Some(Value::Bool(b)) => Ok(*b),
         Some(Value::String(s)) if s.eq_ignore_ascii_case("true") => Ok(true),
         Some(Value::String(s)) if s.eq_ignore_ascii_case("false") => Ok(false),
-        Some(_) => invalid(format!("Could not convert value for '{what}' to a boolean.")),
+        Some(_) => invalid(format!(
+            "Could not convert value for '{what}' to a boolean."
+        )),
     }
 }
 
@@ -152,7 +154,7 @@ fn parse_install_target(v: &Value) -> R<InstallTarget> {
         _ => {
             return invalid(
                 "Error parsing version range. Expected a version range but got a different type.",
-            )
+            );
         }
     };
     let sku = as_string_value(required(o, "sku")?, "sku")?;
@@ -168,10 +170,14 @@ fn parse_identity(v: &Value) -> R<Option<Identity>> {
     let internal_name = as_opt_string(Some(required(o, "internalName")?), "internalName")?;
     let version = match as_opt_string(prop(o, "version"), "version")? {
         None => None,
-        Some(s) => Some(
-            Version::parse(&s)
-                .map_or_else(|| invalid(format!("Error converting value \"{s}\" to type 'System.Version'.")), Ok)?,
-        ),
+        Some(s) => Some(Version::parse(&s).map_or_else(
+            || {
+                invalid(format!(
+                    "Error converting value \"{s}\" to type 'System.Version'."
+                ))
+            },
+            Ok,
+        )?),
     };
     let install_targets = as_opt_array(prop(o, "installTargets"), "installTargets")?
         .map(|a| a.iter().map(parse_install_target).collect::<R<Vec<_>>>())
@@ -200,7 +206,8 @@ fn parse_asset_file(v: &Value) -> R<AssetFile> {
 
 impl PublishManifest {
     pub fn from_json(text: &str) -> R<Self> {
-        let root: Value = serde_json::from_str(text).map_err(|e| ManifestError::Invalid(e.to_string()))?;
+        let root: Value =
+            serde_json::from_str(text).map_err(|e| ManifestError::Invalid(e.to_string()))?;
         let o = as_object(&root, "manifest")?;
         let identity = parse_identity(required(o, "identity")?)?;
         let categories = match as_opt_array(Some(required(o, "categories")?), "categories")? {
@@ -297,8 +304,12 @@ mod tests {
 
     #[test]
     fn missing_required_is_invalid() {
-        let e = PublishManifest::from_json(r#"{"publisher":"p","overview":"o","categories":[]}"#).unwrap_err();
-        assert_eq!(e, ManifestError::Invalid("Required property 'identity' not found in JSON.".into()));
+        let e = PublishManifest::from_json(r#"{"publisher":"p","overview":"o","categories":[]}"#)
+            .unwrap_err();
+        assert_eq!(
+            e,
+            ManifestError::Invalid("Required property 'identity' not found in JSON.".into())
+        );
     }
 
     #[test]
@@ -312,11 +323,17 @@ mod tests {
             r#"{"publisher":"p","overview":"o","categories":["other"],"identity":{"internalName":"x","installTargets":[{"sku":"foo","version":"17.0"}]}}"#,
         )
         .unwrap_err();
-        assert_eq!(e, ManifestError::Unsupported("Could not find matching sku for foo.".into()));
+        assert_eq!(
+            e,
+            ManifestError::Unsupported("Could not find matching sku for foo.".into())
+        );
     }
 
     #[test]
     fn malformed_json_is_invalid() {
-        assert!(matches!(PublishManifest::from_json("{"), Err(ManifestError::Invalid(_))));
+        assert!(matches!(
+            PublishManifest::from_json("{"),
+            Err(ManifestError::Invalid(_))
+        ));
     }
 }

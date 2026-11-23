@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use reqwest::Url;
 
 use crate::cli::{Args, Argument, ArgumentType::*, Command};
-use crate::client::{parse_marketplace_url, ClientFactory, GetExtension, MarketplaceClient};
+use crate::client::{ClientFactory, GetExtension, MarketplaceClient, parse_marketplace_url};
 use crate::db::PublisherDb;
 use crate::logger::Logger;
 use crate::manifest::{AssetFile, ManifestError, PublishManifest};
@@ -30,9 +30,11 @@ enum PayloadArg {
 fn classify(payload: &str) -> PayloadArg {
     match Url::parse(payload) {
         Ok(u) if u.scheme() == "http" || u.scheme() == "https" => PayloadArg::Link,
-        Ok(u) if u.scheme() == "file" => {
-            PayloadArg::File(u.to_file_path().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| payload.into()))
-        }
+        Ok(u) if u.scheme() == "file" => PayloadArg::File(
+            u.to_file_path()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_else(|_| payload.into()),
+        ),
         // Windows drive letters ("C:\...") parse as a one-letter scheme.
         Ok(u) if u.scheme().len() == 1 => PayloadArg::File(payload.into()),
         Ok(_) => PayloadArg::Invalid,
@@ -51,19 +53,39 @@ fn absolute(p: &str) -> PathBuf {
 
 /// An OPC package (what `Package.Open` accepts) is a zip with `[Content_Types].xml`.
 fn is_vsix(path: &Path) -> bool {
-    vsix::open(path).map(|z| z.index_for_name("[Content_Types].xml").is_some()).unwrap_or(false)
+    vsix::open(path)
+        .map(|z| z.index_for_name("[Content_Types].xml").is_some())
+        .unwrap_or(false)
 }
 
 impl Command for PublishCommand {
     fn arguments(&self) -> Vec<Argument> {
         vec![
             Argument::new("payload", NonBoolean, msg::PUBLISHER_ARGUMENT_PAYLOAD).required(),
-            Argument::new("publishManifest", NonBoolean, msg::PUBLISHER_ARGUMENT_PUBLISHER_MANIFEST).required(),
-            Argument::new("personalAccessToken", NonBoolean, msg::PUBLISHER_ARGUMENT_PERSONAL_ACCESS_TOKEN),
+            Argument::new(
+                "publishManifest",
+                NonBoolean,
+                msg::PUBLISHER_ARGUMENT_PUBLISHER_MANIFEST,
+            )
+            .required(),
+            Argument::new(
+                "personalAccessToken",
+                NonBoolean,
+                msg::PUBLISHER_ARGUMENT_PERSONAL_ACCESS_TOKEN,
+            ),
             Argument::new("oidc", Boolean, msg::PUBLISHER_ARGUMENT_OIDC),
-            Argument::new("outputFilePath", NonBoolean, msg::PUBLISHER_ARGUMENT_OUTPUT_FILE_PATH).hidden(),
+            Argument::new(
+                "outputFilePath",
+                NonBoolean,
+                msg::PUBLISHER_ARGUMENT_OUTPUT_FILE_PATH,
+            )
+            .hidden(),
             Argument::new("marketplaceUrl", NonBoolean, msg::ARGUMENT_MARKETPLACE_URL).hidden(),
-            Argument::new("ignoreWarnings", NonBoolean, msg::PUBLISHER_ARGUMENT_IGNORE_WARNINGS),
+            Argument::new(
+                "ignoreWarnings",
+                NonBoolean,
+                msg::PUBLISHER_ARGUMENT_IGNORE_WARNINGS,
+            ),
         ]
     }
 
@@ -92,7 +114,10 @@ impl Command for PublishCommand {
         let oidc = args.flag("oidc");
         let mut pat = args.get("personalAccessToken").map(str::to_string);
         if oidc && pat.as_deref().is_some_and(|p| !p.is_empty()) {
-            return log.error(msg::CONFLICTING_AUTHENTICATION_ARGUMENTS, &[&"oidc", &"personalAccessToken"]);
+            return log.error(
+                msg::CONFLICTING_AUTHENTICATION_ARGUMENTS,
+                &[&"oidc", &"personalAccessToken"],
+            );
         }
         let Some(url) = parse_marketplace_url(args.get("marketplaceUrl"), log) else {
             return log.last_error_code_or(-1);
@@ -102,10 +127,16 @@ impl Command for PublishCommand {
             PayloadArg::Link => (payload_arg.to_string(), PayloadType::Link),
             PayloadArg::File(p) => {
                 let abs = absolute(&p);
-                let t = if is_vsix(&abs) { PayloadType::Vsix } else { PayloadType::Other };
+                let t = if is_vsix(&abs) {
+                    PayloadType::Vsix
+                } else {
+                    PayloadType::Other
+                };
                 (abs.to_string_lossy().into_owned(), t)
             }
-            PayloadArg::Invalid => return log.error(msg::INVALID_PAYLOAD_ARGUMENT, &[&payload_arg]),
+            PayloadArg::Invalid => {
+                return log.error(msg::INVALID_PAYLOAD_ARGUMENT, &[&payload_arg]);
+            }
         };
         let manifest_path = absolute(args.get("publishManifest").unwrap_or_default());
         let manifest_display = manifest_path.to_string_lossy().into_owned();
@@ -115,8 +146,12 @@ impl Command for PublishCommand {
             .and_then(|t| PublishManifest::from_json(&t))
         {
             Ok(m) => m,
-            Err(ManifestError::Unsupported(e)) => return log.error(msg::MANIFEST_INVALID_DATA, &[&manifest_display, &e]),
-            Err(ManifestError::Invalid(e)) => return log.error(msg::ERROR_READING_PUBLISHER_MANIFEST, &[&e]),
+            Err(ManifestError::Unsupported(e)) => {
+                return log.error(msg::MANIFEST_INVALID_DATA, &[&manifest_display, &e]);
+            }
+            Err(ManifestError::Invalid(e)) => {
+                return log.error(msg::ERROR_READING_PUBLISHER_MANIFEST, &[&e]);
+            }
         };
 
         let publisher = manifest.publisher.clone().unwrap_or_default();
@@ -139,11 +174,19 @@ impl Command for PublishCommand {
             }
         }
 
-        let client = match super::connect(self.factory.as_ref(), pat.as_deref().unwrap_or_default(), &url, log) {
+        let client = match super::connect(
+            self.factory.as_ref(),
+            pat.as_deref().unwrap_or_default(),
+            &url,
+            log,
+        ) {
             Ok(c) => c,
             Err(code) => return code,
         };
-        let base = manifest_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+        let base = manifest_path
+            .parent()
+            .unwrap_or(Path::new("."))
+            .to_path_buf();
         let ctx = PublishContext {
             payload: &payload,
             payload_type,
@@ -166,16 +209,27 @@ struct PublishContext<'a> {
 }
 
 /// Port of `Publisher.PublishCoreAsync`.
-fn publish(ctx: &PublishContext, m: &mut PublishManifest, client: &dyn MarketplaceClient, log: &mut Logger) -> i32 {
+fn publish(
+    ctx: &PublishContext,
+    m: &mut PublishManifest,
+    client: &dyn MarketplaceClient,
+    log: &mut Logger,
+) -> i32 {
     // Keeps the extracted icon alive until the upload finished.
     let mut _icon_file: Option<tempfile::TempPath> = None;
 
     if ctx.payload_type == PayloadType::Vsix {
-        if m.identity.as_ref().and_then(|i| i.identifier.as_ref()).is_some() {
+        if m.identity
+            .as_ref()
+            .and_then(|i| i.identifier.as_ref())
+            .is_some()
+        {
             return log.error(msg::MANIFEST_SHOULD_NOT_SET_IDENTITY, &[&ctx.payload]);
         }
         let internal_name = m.identity.as_ref().and_then(|i| i.internal_name.clone());
-        let content = vsix::open(Path::new(ctx.payload)).ok().and_then(|mut z| vsix::manifest_content(&mut z));
+        let content = vsix::open(Path::new(ctx.payload))
+            .ok()
+            .and_then(|mut z| vsix::manifest_content(&mut z));
         let Some(content) = content else {
             return log.error(msg::PAYLOAD_NOT_VALID_VSIX, &[&ctx.payload]);
         };
@@ -183,9 +237,17 @@ fn publish(ctx: &PublishContext, m: &mut PublishManifest, client: &dyn Marketpla
             Ok(id) => m.identity = Some(id),
             Err(e) => return log.error(msg::ERROR_PARSING_VSIX_MANIFEST, &[&e]),
         }
-        let icon = m.identity.as_ref().and_then(|i| i.icon.clone()).filter(|s| !s.is_empty());
+        let icon = m
+            .identity
+            .as_ref()
+            .and_then(|i| i.icon.clone())
+            .filter(|s| !s.is_empty());
         if let Some(icon) = icon {
-            let tmp = match tempfile::Builder::new().prefix("tmp").suffix(".tmp").tempfile() {
+            let tmp = match tempfile::Builder::new()
+                .prefix("tmp")
+                .suffix(".tmp")
+                .tempfile()
+            {
                 Ok(t) => t.into_temp_path(),
                 Err(e) => return log.error(msg::GENERIC_ERROR_PUBLISHING, &[&ctx.payload, &e]),
             };
@@ -208,7 +270,12 @@ fn publish(ctx: &PublishContext, m: &mut PublishManifest, client: &dyn Marketpla
         target_path: mm::OVERVIEW_PATH.into(),
         asset_type: Some(mm::OVERVIEW_TYPE.into()),
     });
-    if let Some(icon) = m.identity.as_ref().and_then(|i| i.icon.clone()).filter(|s| !s.is_empty()) {
+    if let Some(icon) = m
+        .identity
+        .as_ref()
+        .and_then(|i| i.icon.clone())
+        .filter(|s| !s.is_empty())
+    {
         m.asset_files.push(AssetFile {
             target_path: mm::ensure_leading_slash(mm::file_name(&icon)),
             path_on_disk: icon,
@@ -216,7 +283,13 @@ fn publish(ctx: &PublishContext, m: &mut PublishManifest, client: &dyn Marketpla
         });
     }
     if let Some(w) = ctx.ignore_warnings.filter(|w| !w.is_empty()) {
-        m.ignore_warnings = Some(w.split(',').map(str::trim).filter(|s| !s.is_empty()).map(String::from).collect());
+        m.ignore_warnings = Some(
+            w.split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+                .collect(),
+        );
     }
 
     let xml = mm::generate(ctx.payload, ctx.payload_type, m);
@@ -232,7 +305,11 @@ fn publish(ctx: &PublishContext, m: &mut PublishManifest, client: &dyn Marketpla
     }
 
     let publisher = m.publisher.clone().unwrap_or_default();
-    let internal = m.identity.as_ref().and_then(|i| i.internal_name.clone()).unwrap_or_default();
+    let internal = m
+        .identity
+        .as_ref()
+        .and_then(|i| i.internal_name.clone())
+        .unwrap_or_default();
     let uploaded = match client.get_extension(&publisher, &internal, log) {
         GetExtension::Success(_) => client.update_extension(&pkg, &publisher, &internal, log),
         GetExtension::NotFound => client.create_extension(&pkg, &publisher, log),
@@ -261,9 +338,9 @@ fn publish(ctx: &PublishContext, m: &mut PublishManifest, client: &dyn Marketpla
 mod tests {
     use super::*;
     use crate::client::ExtensionResponse;
-    use crate::commands::fake::{args, Fake};
+    use crate::commands::fake::{Fake, args};
     use crate::logger::test_support::capture;
-    use crate::vsix::test_support::{write_vsix, V2_MANIFEST};
+    use crate::vsix::test_support::{V2_MANIFEST, write_vsix};
     use std::io::Read;
 
     struct NoTokens;
@@ -302,7 +379,10 @@ mod tests {
             std::fs::write(p.join("setup.exe"), "MZ").unwrap();
             std::fs::write(p.join("publish.json"), manifest_json).unwrap();
             let fake = Fake::default();
-            fake.0.borrow_mut().upload = Some(ExtensionResponse { display_name: Some("My Extension".into()), ..Default::default() });
+            fake.0.borrow_mut().upload = Some(ExtensionResponse {
+                display_name: Some("My Extension".into()),
+                ..Default::default()
+            });
             Env { dir, fake }
         }
 
@@ -311,18 +391,28 @@ mod tests {
         }
 
         fn cmd(&self, tokens: Box<dyn TokenProvider>) -> PublishCommand {
-            PublishCommand { db_path: self.dir.path().join(".vsce"), factory: Box::new(self.fake.clone()), tokens }
+            PublishCommand {
+                db_path: self.dir.path().join(".vsce"),
+                factory: Box::new(self.fake.clone()),
+                tokens,
+            }
         }
 
         fn run(&self, extra: &[(&'static str, Option<&str>)]) -> (i32, String, String) {
             self.run_with(Box::new(NoTokens), extra)
         }
 
-        fn run_with(&self, tokens: Box<dyn TokenProvider>, extra: &[(&'static str, Option<&str>)]) -> (i32, String, String) {
+        fn run_with(
+            &self,
+            tokens: Box<dyn TokenProvider>,
+            extra: &[(&'static str, Option<&str>)],
+        ) -> (i32, String, String) {
             let payload = self.path("My.vsix");
             let manifest = self.path("publish.json");
-            let mut pairs: Vec<(&'static str, Option<&str>)> =
-                vec![("payload", Some(&payload)), ("publishManifest", Some(&manifest))];
+            let mut pairs: Vec<(&'static str, Option<&str>)> = vec![
+                ("payload", Some(&payload)),
+                ("publishManifest", Some(&manifest)),
+            ];
             for (k, v) in extra {
                 pairs.retain(|(pk, _)| pk != k);
                 pairs.push((k, *v));
@@ -354,32 +444,50 @@ mod tests {
         let env = Env::new(VSIX_JSON);
         let (code, out, err) = env.run(&[("personalAccessToken", Some("pat"))]);
         assert_eq!(code, 0, "{err}");
-        assert_eq!(out, "VSSDK: information VsixPub0038 : Uploaded 'My Extension' to the marketplace.\n");
+        assert_eq!(
+            out,
+            "VSSDK: information VsixPub0038 : Uploaded 'My Extension' to the marketplace.\n"
+        );
         let s = env.fake.0.borrow();
         assert_eq!(s.pat.as_deref(), Some("pat"));
-        assert_eq!(s.calls, vec!["get_extension me my-ext", "create_extension me"]);
+        assert_eq!(
+            s.calls,
+            vec!["get_extension me my-ext", "create_extension me"]
+        );
         drop(s);
         let xml = String::from_utf8(env.uploaded_entry("extension.marketplacemanifest")).unwrap();
-        assert!(xml.contains(r#"<Identity Language="en-US" Id="my-ext" Version="1.2.3" Publisher="me" />"#));
+        assert!(xml.contains(
+            r#"<Identity Language="en-US" Id="my-ext" Version="1.2.3" Publisher="me" />"#
+        ));
         assert!(xml.contains("<VsixId>MyExt.abc</VsixId>"));
         assert!(xml.contains(r#"Path="/My.vsix""#));
         assert!(!xml.contains("<Installation>"));
         assert_eq!(env.uploaded_entry("overview.md"), b"# Hello");
         assert_eq!(env.uploaded_entry("My.vsix").len() > 0, true);
         let icon_line = xml.lines().find(|l| l.contains("<Icon>")).unwrap();
-        let icon = icon_line.trim().trim_start_matches("<Icon>/").trim_end_matches("</Icon>");
+        let icon = icon_line
+            .trim()
+            .trim_start_matches("<Icon>/")
+            .trim_end_matches("</Icon>");
         assert_eq!(env.uploaded_entry(icon), b"PNG");
     }
 
     #[test]
     fn updates_existing_extension_and_writes_output_file() {
         let env = Env::new(VSIX_JSON);
-        env.fake.0.borrow_mut().get_extension = Some(GetExtension::Success(ExtensionResponse::default()));
+        env.fake.0.borrow_mut().get_extension =
+            Some(GetExtension::Success(ExtensionResponse::default()));
         let out_file = env.path("out.zip");
-        let (code, _, _) = env.run(&[("personalAccessToken", Some("pat")), ("outputFilePath", Some(&out_file))]);
+        let (code, _, _) = env.run(&[
+            ("personalAccessToken", Some("pat")),
+            ("outputFilePath", Some(&out_file)),
+        ]);
         assert_eq!(code, 0);
         assert_eq!(env.fake.0.borrow().calls[1], "update_extension me my-ext");
-        assert_eq!(std::fs::read(&out_file).unwrap(), env.fake.0.borrow().uploaded);
+        assert_eq!(
+            std::fs::read(&out_file).unwrap(),
+            env.fake.0.borrow().uploaded
+        );
     }
 
     #[test]
@@ -396,7 +504,11 @@ mod tests {
     #[test]
     fn oidc_flow() {
         let env = Env::new(VSIX_JSON);
-        assert_eq!(env.run(&[("oidc", None), ("personalAccessToken", Some("p"))]).0, 44);
+        assert_eq!(
+            env.run(&[("oidc", None), ("personalAccessToken", Some("p"))])
+                .0,
+            44
+        );
         assert_eq!(env.run(&[("oidc", None)]).0, 45);
         assert_eq!(env.run_with(Box::new(Tokens), &[("oidc", None)]).0, 0);
         assert_eq!(env.fake.0.borrow().pat.as_deref(), Some("session-for-me"));
@@ -408,18 +520,31 @@ mod tests {
         assert_eq!(env.run(&[("payload", Some("ftp://x/y.vsix"))]).0, 22);
         assert_eq!(env.run(&[("payload", Some("missing.vsix"))]).0, 1);
         assert_eq!(env.run(&[("publishManifest", Some("missing.json"))]).0, 2);
-        assert_eq!(env.run(&[("personalAccessToken", Some("p")), ("marketplaceUrl", Some("::"))]).0, 34);
+        assert_eq!(
+            env.run(&[
+                ("personalAccessToken", Some("p")),
+                ("marketplaceUrl", Some("::"))
+            ])
+            .0,
+            34
+        );
     }
 
     #[test]
     fn manifest_errors() {
         let env = Env::new("{");
         assert_eq!(env.run(&[("personalAccessToken", Some("p"))]).0, 3);
-        let env = Env::new(r#"{"publisher":"me","overview":"README.md","categories":["bogus"],"identity":{"internalName":"x"}}"#);
+        let env = Env::new(
+            r#"{"publisher":"me","overview":"README.md","categories":["bogus"],"identity":{"internalName":"x"}}"#,
+        );
         assert_eq!(env.run(&[("personalAccessToken", Some("p"))]).0, 6);
-        let env = Env::new(r#"{"publisher":"me","overview":"README.md","categories":["coding"],"identity":{"internalName":"x","vsixId":"y"}}"#);
+        let env = Env::new(
+            r#"{"publisher":"me","overview":"README.md","categories":["coding"],"identity":{"internalName":"x","vsixId":"y"}}"#,
+        );
         assert_eq!(env.run(&[("personalAccessToken", Some("p"))]).0, 17);
-        let env = Env::new(r#"{"publisher":"me","overview":"NOPE.md","categories":["coding"],"identity":{"internalName":"x"}}"#);
+        let env = Env::new(
+            r#"{"publisher":"me","overview":"NOPE.md","categories":["coding"],"identity":{"internalName":"x"}}"#,
+        );
         assert_eq!(env.run(&[("personalAccessToken", Some("p"))]).0, 9);
     }
 
@@ -427,7 +552,11 @@ mod tests {
     fn exe_payload_requires_identity_and_emits_installation() {
         let env = Env::new(VSIX_JSON);
         let exe = env.path("setup.exe");
-        assert_eq!(env.run(&[("personalAccessToken", Some("p")), ("payload", Some(&exe))]).0, 24);
+        assert_eq!(
+            env.run(&[("personalAccessToken", Some("p")), ("payload", Some(&exe))])
+                .0,
+            24
+        );
         // VSIX_JSON identity lacks description etc. -> validation error.
         let env = Env::new(
             r#"{"publisher":"me","overview":"README.md","categories":["coding"],
@@ -435,10 +564,16 @@ mod tests {
                "version":"1.0","installTargets":[{"sku":"Community","version":"[17.0,18.0)"}]}}"#,
         );
         let exe = env.path("setup.exe");
-        let (code, _, err) = env.run(&[("personalAccessToken", Some("p")), ("payload", Some(&exe)), ("ignoreWarnings", Some("W1, W2"))]);
+        let (code, _, err) = env.run(&[
+            ("personalAccessToken", Some("p")),
+            ("payload", Some(&exe)),
+            ("ignoreWarnings", Some("W1, W2")),
+        ]);
         assert_eq!(code, 0, "{err}");
         let xml = String::from_utf8(env.uploaded_entry("extension.marketplacemanifest")).unwrap();
-        assert!(xml.contains(r#"<InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0,18.0)" />"#));
+        assert!(xml.contains(
+            r#"<InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0,18.0)" />"#
+        ));
         assert!(xml.contains("<IgnoreWarnings>W1,W2</IgnoreWarnings>"));
         assert_eq!(env.uploaded_entry("setup.exe"), b"MZ");
     }
@@ -450,7 +585,10 @@ mod tests {
                "identity":{"internalName":"my-link","displayName":"Link","description":"d","language":"en-US",
                "installTargets":[{"sku":"Pro","version":"[17.0,18.0)"}]}}"#,
         );
-        let (code, _, err) = env.run(&[("personalAccessToken", Some("p")), ("payload", Some("https://example.com/get"))]);
+        let (code, _, err) = env.run(&[
+            ("personalAccessToken", Some("p")),
+            ("payload", Some("https://example.com/get")),
+        ]);
         assert_eq!(code, 0, "{err}");
         let xml = String::from_utf8(env.uploaded_entry("extension.marketplacemanifest")).unwrap();
         assert!(xml.contains(r#"Value="https://example.com/get""#));

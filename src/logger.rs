@@ -167,8 +167,11 @@ pub mod test_support {
 mod tests {
     use super::*;
 
-    const ERR: OutputMessage =
-        OutputMessage::new("Cannot locate '{0}' ({1}).", "VsixPub0007", MessageType::Error);
+    const ERR: OutputMessage = OutputMessage::new(
+        "Cannot locate '{0}' ({1}).",
+        "VsixPub0007",
+        MessageType::Error,
+    );
     const INFO: OutputMessage =
         OutputMessage::new("Uploaded '{0}'.", "VsixPub0038", MessageType::Information);
 
@@ -201,7 +204,10 @@ mod tests {
         assert_eq!(log.last_error_code_or(0), 0);
         log.info(INFO, &[&"E"]);
         assert_eq!(log.error(ERR, &[&"p", &1]), 7);
-        assert_eq!(out.text(), "VSSDK: information VsixPub0038 : Uploaded 'E'.\n");
+        assert_eq!(
+            out.text(),
+            "VSSDK: information VsixPub0038 : Uploaded 'E'.\n"
+        );
         assert!(err.text().contains("VsixPub0007"));
         assert_eq!(log.last_error(), Some(ERR));
     }

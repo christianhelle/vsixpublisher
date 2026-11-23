@@ -1,10 +1,10 @@
 //! Port of `GitHubActionsOidcTokenProvider` (trusted publishing).
 
-use reqwest::blocking::Client;
 use reqwest::Url;
+use reqwest::blocking::Client;
 use serde::Deserialize;
 
-use crate::client::{user_agent, AUTH_TIMEOUT};
+use crate::client::{AUTH_TIMEOUT, user_agent};
 use crate::logger::Logger;
 use crate::messages as msg;
 
@@ -14,7 +14,8 @@ pub const REQUEST_URL_VAR: &str = "ACTIONS_ID_TOKEN_REQUEST_URL";
 
 pub trait TokenProvider {
     /// Returns a marketplace session token, logging errors on failure.
-    fn session_token(&self, publisher: &str, marketplace: &Url, log: &mut Logger) -> Option<String>;
+    fn session_token(&self, publisher: &str, marketplace: &Url, log: &mut Logger)
+    -> Option<String>;
 }
 
 pub struct GitHubActionsTokenProvider {
@@ -23,7 +24,9 @@ pub struct GitHubActionsTokenProvider {
 
 impl Default for GitHubActionsTokenProvider {
     fn default() -> Self {
-        Self { env: Box::new(|k| std::env::var(k).ok()) }
+        Self {
+            env: Box::new(|k| std::env::var(k).ok()),
+        }
     }
 }
 
@@ -55,24 +58,42 @@ enum Fail {
 }
 
 fn send(rb: reqwest::blocking::RequestBuilder) -> Result<(bool, String), Fail> {
-    let r = rb.send().map_err(|e| if e.is_timeout() { Fail::Timeout } else { Fail::Other(e.to_string()) })?;
+    let r = rb.send().map_err(|e| {
+        if e.is_timeout() {
+            Fail::Timeout
+        } else {
+            Fail::Other(e.to_string())
+        }
+    })?;
     let ok = r.status().is_success();
     Ok((ok, r.text().unwrap_or_default()))
 }
 
 impl TokenProvider for GitHubActionsTokenProvider {
-    fn session_token(&self, publisher: &str, marketplace: &Url, log: &mut Logger) -> Option<String> {
+    fn session_token(
+        &self,
+        publisher: &str,
+        marketplace: &Url,
+        log: &mut Logger,
+    ) -> Option<String> {
         let token = (self.env)(REQUEST_TOKEN_VAR).filter(|s| !s.is_empty());
         let url = (self.env)(REQUEST_URL_VAR).filter(|s| !s.is_empty());
         let (Some(token), Some(url)) = (token, url) else {
-            log.error(msg::OIDC_PROVIDER_UNAVAILABLE, &[&REQUEST_URL_VAR, &REQUEST_TOKEN_VAR]);
+            log.error(
+                msg::OIDC_PROVIDER_UNAVAILABLE,
+                &[&REQUEST_URL_VAR, &REQUEST_TOKEN_VAR],
+            );
             return None;
         };
         let Some(request_url) = token_request_url(&url) else {
             log.error(msg::INVALID_URI, &[&url, &REQUEST_URL_VAR]);
             return None;
         };
-        let http = Client::builder().timeout(AUTH_TIMEOUT).user_agent(user_agent()).build().ok()?;
+        let http = Client::builder()
+            .timeout(AUTH_TIMEOUT)
+            .user_agent(user_agent())
+            .build()
+            .ok()?;
 
         let provider_token = match send(http.get(request_url).bearer_auth(&token)) {
             Err(Fail::Timeout) => {
@@ -90,7 +111,10 @@ impl TokenProvider for GitHubActionsTokenProvider {
             Ok((true, body)) => match serde_json::from_str::<OidcResponse>(&body) {
                 Ok(OidcResponse { value: Some(v) }) if !v.is_empty() => v,
                 Ok(_) => {
-                    log.error(msg::OIDC_PROVIDER_TOKEN_REQUEST_FAILED, &[&msg::OIDC_TOKEN_RESPONSE_MISSING_TOKEN]);
+                    log.error(
+                        msg::OIDC_PROVIDER_TOKEN_REQUEST_FAILED,
+                        &[&msg::OIDC_TOKEN_RESPONSE_MISSING_TOKEN],
+                    );
                     return None;
                 }
                 Err(e) => {
@@ -121,9 +145,14 @@ impl TokenProvider for GitHubActionsTokenProvider {
                 None
             }
             Ok((true, body)) => match serde_json::from_str::<TokenResponse>(&body) {
-                Ok(TokenResponse { credential: Some(c) }) if !c.is_empty() => Some(c),
+                Ok(TokenResponse {
+                    credential: Some(c),
+                }) if !c.is_empty() => Some(c),
                 Ok(_) => {
-                    log.error(msg::OIDC_SESSION_TOKEN_EXCHANGE_FAILED, &[&msg::OIDC_TOKEN_RESPONSE_MISSING_TOKEN]);
+                    log.error(
+                        msg::OIDC_SESSION_TOKEN_EXCHANGE_FAILED,
+                        &[&msg::OIDC_TOKEN_RESPONSE_MISSING_TOKEN],
+                    );
                     None
                 }
                 Err(e) => {
@@ -143,17 +172,27 @@ mod tests {
     use std::collections::HashMap;
 
     fn provider(vars: &[(&str, String)]) -> GitHubActionsTokenProvider {
-        let map: HashMap<String, String> = vars.iter().map(|(k, v)| (k.to_string(), v.clone())).collect();
-        GitHubActionsTokenProvider { env: Box::new(move |k| map.get(k).cloned()) }
+        let map: HashMap<String, String> = vars
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect();
+        GitHubActionsTokenProvider {
+            env: Box::new(move |k| map.get(k).cloned()),
+        }
     }
 
     #[test]
     fn appends_audience() {
         assert_eq!(
-            token_request_url("https://x/token?api-version=2.0").unwrap().as_str(),
+            token_request_url("https://x/token?api-version=2.0")
+                .unwrap()
+                .as_str(),
             "https://x/token?api-version=2.0&audience=marketplace.visualstudio.com"
         );
-        assert_eq!(token_request_url("https://x/t").unwrap().query(), Some("audience=marketplace.visualstudio.com"));
+        assert_eq!(
+            token_request_url("https://x/t").unwrap().query(),
+            Some("audience=marketplace.visualstudio.com")
+        );
         assert!(token_request_url("nope").is_none());
     }
 
@@ -163,7 +202,10 @@ mod tests {
         let url = Url::parse("https://m/").unwrap();
         assert!(provider(&[]).session_token("me", &url, &mut log).is_none());
         assert_eq!(log.last_error_code_or(0), 45);
-        assert!(err.text().contains("'ACTIONS_ID_TOKEN_REQUEST_URL' and 'ACTIONS_ID_TOKEN_REQUEST_TOKEN'"));
+        assert!(
+            err.text()
+                .contains("'ACTIONS_ID_TOKEN_REQUEST_URL' and 'ACTIONS_ID_TOKEN_REQUEST_TOKEN'")
+        );
     }
 
     #[test]
@@ -186,25 +228,46 @@ mod tests {
         ]);
         let (mut log, _, _) = capture();
         let url = Url::parse(&format!("{}/", s.url())).unwrap();
-        assert_eq!(p.session_token("me", &url, &mut log).as_deref(), Some("session"));
+        assert_eq!(
+            p.session_token("me", &url, &mut log).as_deref(),
+            Some("session")
+        );
         exchange.assert();
     }
 
     #[test]
     fn provider_and_exchange_failures() {
         let mut s = Server::new();
-        s.mock("GET", "/oidc").match_query(Matcher::Any).with_body("{}").create();
-        let p = provider(&[(REQUEST_TOKEN_VAR, "t".into()), (REQUEST_URL_VAR, format!("{}/oidc", s.url()))]);
+        s.mock("GET", "/oidc")
+            .match_query(Matcher::Any)
+            .with_body("{}")
+            .create();
+        let p = provider(&[
+            (REQUEST_TOKEN_VAR, "t".into()),
+            (REQUEST_URL_VAR, format!("{}/oidc", s.url())),
+        ]);
         let (mut log, _, err) = capture();
         let url = Url::parse(&format!("{}/", s.url())).unwrap();
         assert!(p.session_token("me", &url, &mut log).is_none());
         assert_eq!(log.last_error_code_or(0), 46);
-        assert!(err.text().contains("The token response did not contain a token."));
+        assert!(
+            err.text()
+                .contains("The token response did not contain a token.")
+        );
 
         let mut s = Server::new();
-        s.mock("GET", "/oidc").match_query(Matcher::Any).with_body(r#"{"value":"j"}"#).create();
-        s.mock("POST", "/_apis/gallery/token").with_status(403).with_body("forbidden").create();
-        let p = provider(&[(REQUEST_TOKEN_VAR, "t".into()), (REQUEST_URL_VAR, format!("{}/oidc", s.url()))]);
+        s.mock("GET", "/oidc")
+            .match_query(Matcher::Any)
+            .with_body(r#"{"value":"j"}"#)
+            .create();
+        s.mock("POST", "/_apis/gallery/token")
+            .with_status(403)
+            .with_body("forbidden")
+            .create();
+        let p = provider(&[
+            (REQUEST_TOKEN_VAR, "t".into()),
+            (REQUEST_URL_VAR, format!("{}/oidc", s.url())),
+        ]);
         let url = Url::parse(&format!("{}/", s.url())).unwrap();
         assert!(p.session_token("me", &url, &mut log).is_none());
         assert_eq!(log.last_error_code_or(0), 47);

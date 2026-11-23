@@ -64,10 +64,19 @@ pub trait MarketplaceClient {
     fn delete_publisher(&self, publisher: &str, log: &mut Logger) -> bool;
     fn get_extension(&self, publisher: &str, extension: &str, log: &mut Logger) -> GetExtension;
     /// `Err` = transport failure (surfaced as a generic publishing error).
-    fn create_extension(&self, package: &[u8], publisher: &str, log: &mut Logger)
-        -> Result<Option<ExtensionResponse>, String>;
-    fn update_extension(&self, package: &[u8], publisher: &str, extension: &str, log: &mut Logger)
-        -> Result<Option<ExtensionResponse>, String>;
+    fn create_extension(
+        &self,
+        package: &[u8],
+        publisher: &str,
+        log: &mut Logger,
+    ) -> Result<Option<ExtensionResponse>, String>;
+    fn update_extension(
+        &self,
+        package: &[u8],
+        publisher: &str,
+        extension: &str,
+        log: &mut Logger,
+    ) -> Result<Option<ExtensionResponse>, String>;
     fn delete_extension(&self, publisher: &str, extension: &str, log: &mut Logger) -> DeleteResult;
 }
 
@@ -81,7 +90,9 @@ pub struct HttpClientFactory;
 impl ClientFactory for HttpClientFactory {
     fn create(&self, pat: &str, url: &Url, log: &mut Logger) -> Option<Box<dyn MarketplaceClient>> {
         let client = HttpMarketplaceClient::new(url.clone(), pat.to_string());
-        client.authenticate(log).then(|| Box::new(client) as Box<dyn MarketplaceClient>)
+        client
+            .authenticate(log)
+            .then(|| Box::new(client) as Box<dyn MarketplaceClient>)
     }
 }
 
@@ -99,12 +110,21 @@ fn service_error(url: &Url, status: StatusCode, body: &str) -> ErrorResponse {
         }
     }
     let message = if status == StatusCode::UNAUTHORIZED {
-        format!("VS30063: You are not authorized to access {}.", url.origin().ascii_serialization())
+        format!(
+            "VS30063: You are not authorized to access {}.",
+            url.origin().ascii_serialization()
+        )
     } else {
         let reason = status.canonical_reason().unwrap_or("");
-        format!("{} ({}).", reason, status.as_u16()).trim_start().to_string()
+        format!("{} ({}).", reason, status.as_u16())
+            .trim_start()
+            .to_string()
     };
-    ErrorResponse { message: Some(message), type_key: None, error_code: 0 }
+    ErrorResponse {
+        message: Some(message),
+        type_key: None,
+        error_code: 0,
+    }
 }
 
 impl HttpMarketplaceClient {
@@ -134,7 +154,10 @@ impl HttpMarketplaceClient {
         self.http
             .request(method, url)
             .basic_auth("", Some(&self.pat))
-            .header("Accept", format!("application/json; api-version={api_version}"))
+            .header(
+                "Accept",
+                format!("application/json; api-version={api_version}"),
+            )
             .header("X-TFS-FedAuthRedirect", "Suppress")
     }
 
@@ -147,16 +170,23 @@ impl HttpMarketplaceClient {
     /// Equivalent of `VssConnection.ConnectAsync`.
     pub fn authenticate(&self, log: &mut Logger) -> bool {
         if !is_secure_or_loopback(&self.base) {
-            log.error(msg::COULD_NOT_AUTHENTICATE, &[&"Basic authentication requires a secure connection to the server."]);
+            log.error(
+                msg::COULD_NOT_AUTHENTICATE,
+                &[&"Basic authentication requires a secure connection to the server."],
+            );
             return false;
         }
-        let url = self.url("_apis/connectionData?connectOptions=1&lastChangeId=-1&lastChangeId64=-1");
+        let url =
+            self.url("_apis/connectionData?connectOptions=1&lastChangeId=-1&lastChangeId64=-1");
         let rb = self.request(Method::GET, url, "1.0").timeout(AUTH_TIMEOUT);
         match Self::send(rb) {
             Ok((s, _)) if s.is_success() => true,
             Ok((s, body)) => {
                 let e = service_error(&self.base, s, &body);
-                log.error(msg::COULD_NOT_AUTHENTICATE, &[&e.message.unwrap_or_default()]);
+                log.error(
+                    msg::COULD_NOT_AUTHENTICATE,
+                    &[&e.message.unwrap_or_default()],
+                );
                 false
             }
             Err(e) if e.is_timeout() => {
@@ -170,15 +200,25 @@ impl HttpMarketplaceClient {
         }
     }
 
-    fn upload(&self, rb: RequestBuilder, package: &[u8], log: &mut Logger)
-        -> Result<Option<ExtensionResponse>, String> {
-        let rb = rb.header("Content-Type", "application/octet-stream").body(package.to_vec());
+    fn upload(
+        &self,
+        rb: RequestBuilder,
+        package: &[u8],
+        log: &mut Logger,
+    ) -> Result<Option<ExtensionResponse>, String> {
+        let rb = rb
+            .header("Content-Type", "application/octet-stream")
+            .body(package.to_vec());
         let (status, body) = Self::send(rb).map_err(|e| e.to_string())?;
         if status.is_success() {
             return Ok(serde_json::from_str(&body).ok());
         }
         let e = service_error(&self.base, status, &body);
-        let m = if e.error_code == 1 { msg::WARNINGS_FROM_MARKETPLACE } else { msg::ERROR_FROM_MARKETPLACE };
+        let m = if e.error_code == 1 {
+            msg::WARNINGS_FROM_MARKETPLACE
+        } else {
+            msg::ERROR_FROM_MARKETPLACE
+        };
         log.error(m, &[&e.message.unwrap_or_default()]);
         Ok(None)
     }
@@ -186,7 +226,11 @@ impl HttpMarketplaceClient {
 
 impl MarketplaceClient for HttpMarketplaceClient {
     fn get_publisher(&self, publisher: &str, log: &mut Logger) -> Option<MarketplacePublisher> {
-        let rb = self.request(Method::GET, self.publisher_url(publisher), PUBLISHER_API_VERSION);
+        let rb = self.request(
+            Method::GET,
+            self.publisher_url(publisher),
+            PUBLISHER_API_VERSION,
+        );
         match Self::send(rb) {
             Ok((s, body)) if s.is_success() => match serde_json::from_str(&body) {
                 Ok(p) => Some(p),
@@ -208,12 +252,19 @@ impl MarketplaceClient for HttpMarketplaceClient {
     }
 
     fn delete_publisher(&self, publisher: &str, log: &mut Logger) -> bool {
-        let rb = self.request(Method::DELETE, self.publisher_url(publisher), PUBLISHER_API_VERSION);
+        let rb = self.request(
+            Method::DELETE,
+            self.publisher_url(publisher),
+            PUBLISHER_API_VERSION,
+        );
         match Self::send(rb) {
             Ok((s, _)) if s.is_success() => {}
             Ok((s, body)) => {
                 let e = service_error(&self.base, s, &body);
-                log.error(msg::ERROR_FROM_MARKETPLACE, &[&e.message.unwrap_or_default()]);
+                log.error(
+                    msg::ERROR_FROM_MARKETPLACE,
+                    &[&e.message.unwrap_or_default()],
+                );
             }
             Err(e) => {
                 log.error(msg::ERROR_FROM_MARKETPLACE, &[&e]);
@@ -223,7 +274,11 @@ impl MarketplaceClient for HttpMarketplaceClient {
     }
 
     fn get_extension(&self, publisher: &str, extension: &str, log: &mut Logger) -> GetExtension {
-        let rb = self.request(Method::GET, self.extension_url(publisher, extension), EXTENSION_API_VERSION);
+        let rb = self.request(
+            Method::GET,
+            self.extension_url(publisher, extension),
+            EXTENSION_API_VERSION,
+        );
         match Self::send(rb) {
             Ok((s, body)) if s.is_success() => match serde_json::from_str(&body) {
                 Ok(r) => GetExtension::Success(r),
@@ -234,10 +289,15 @@ impl MarketplaceClient for HttpMarketplaceClient {
             },
             Ok((s, body)) => {
                 let e = service_error(&self.base, s, &body);
-                if s == StatusCode::NOT_FOUND && e.type_key.as_deref() == Some(EXTENSION_DOES_NOT_EXIST) {
+                if s == StatusCode::NOT_FOUND
+                    && e.type_key.as_deref() == Some(EXTENSION_DOES_NOT_EXIST)
+                {
                     return GetExtension::NotFound;
                 }
-                log.error(msg::ERROR_FROM_MARKETPLACE, &[&e.message.unwrap_or_default()]);
+                log.error(
+                    msg::ERROR_FROM_MARKETPLACE,
+                    &[&e.message.unwrap_or_default()],
+                );
                 GetExtension::Error
             }
             Err(e) => {
@@ -247,29 +307,55 @@ impl MarketplaceClient for HttpMarketplaceClient {
         }
     }
 
-    fn create_extension(&self, package: &[u8], publisher: &str, log: &mut Logger)
-        -> Result<Option<ExtensionResponse>, String> {
+    fn create_extension(
+        &self,
+        package: &[u8],
+        publisher: &str,
+        log: &mut Logger,
+    ) -> Result<Option<ExtensionResponse>, String> {
         let url = self.url(&format!("_apis/gallery/publishers/{publisher}/extensions/"));
-        self.upload(self.request(Method::POST, url, EXTENSION_API_VERSION), package, log)
+        self.upload(
+            self.request(Method::POST, url, EXTENSION_API_VERSION),
+            package,
+            log,
+        )
     }
 
-    fn update_extension(&self, package: &[u8], publisher: &str, extension: &str, log: &mut Logger)
-        -> Result<Option<ExtensionResponse>, String> {
+    fn update_extension(
+        &self,
+        package: &[u8],
+        publisher: &str,
+        extension: &str,
+        log: &mut Logger,
+    ) -> Result<Option<ExtensionResponse>, String> {
         let url = self.extension_url(publisher, extension);
-        self.upload(self.request(Method::PUT, url, EXTENSION_API_VERSION), package, log)
+        self.upload(
+            self.request(Method::PUT, url, EXTENSION_API_VERSION),
+            package,
+            log,
+        )
     }
 
     fn delete_extension(&self, publisher: &str, extension: &str, log: &mut Logger) -> DeleteResult {
-        let rb = self.request(Method::DELETE, self.extension_url(publisher, extension), EXTENSION_API_VERSION);
+        let rb = self.request(
+            Method::DELETE,
+            self.extension_url(publisher, extension),
+            EXTENSION_API_VERSION,
+        );
         match Self::send(rb) {
             Ok((s, _)) if s.is_success() => DeleteResult::Success,
             Ok((s, body)) => {
                 let e = service_error(&self.base, s, &body);
-                if s == StatusCode::NOT_FOUND && e.type_key.as_deref() == Some(EXTENSION_DOES_NOT_EXIST) {
+                if s == StatusCode::NOT_FOUND
+                    && e.type_key.as_deref() == Some(EXTENSION_DOES_NOT_EXIST)
+                {
                     log.error(msg::EXTENSION_NOT_FOUND, &[&extension, &publisher]);
                     return DeleteResult::NotFound;
                 }
-                log.error(msg::ERROR_FROM_MARKETPLACE, &[&e.message.unwrap_or_default()]);
+                log.error(
+                    msg::ERROR_FROM_MARKETPLACE,
+                    &[&e.message.unwrap_or_default()],
+                );
                 DeleteResult::Error
             }
             Err(e) => {
@@ -314,7 +400,10 @@ mod tests {
     const AUTH: &str = "Basic OnBhdA=="; // ":pat"
 
     fn client(server: &Server) -> HttpMarketplaceClient {
-        HttpMarketplaceClient::new(Url::parse(&format!("{}/", server.url())).unwrap(), "pat".into())
+        HttpMarketplaceClient::new(
+            Url::parse(&format!("{}/", server.url())).unwrap(),
+            "pat".into(),
+        )
     }
 
     #[test]
@@ -352,10 +441,18 @@ mod tests {
             .match_header("accept", "application/json; api-version=4.1-preview.1")
             .with_body(r#"{"publisherName":"me","displayName":"Me"}"#)
             .create();
-        s.mock("GET", "/_apis/gallery/publishers/ghost/").with_status(404).create();
+        s.mock("GET", "/_apis/gallery/publishers/ghost/")
+            .with_status(404)
+            .create();
         let (mut log, _, _) = capture();
         let c = client(&s);
-        assert_eq!(c.get_publisher("me", &mut log).unwrap().display_name.as_deref(), Some("Me"));
+        assert_eq!(
+            c.get_publisher("me", &mut log)
+                .unwrap()
+                .display_name
+                .as_deref(),
+            Some("Me")
+        );
         assert!(c.get_publisher("ghost", &mut log).is_none());
         assert!(log.last_error().is_none());
     }
@@ -377,10 +474,17 @@ mod tests {
             .create();
         let (mut log, _, err) = capture();
         let c = client(&s);
-        assert!(matches!(c.get_extension("me", "ok", &mut log), GetExtension::Success(r) if r.display_name.as_deref() == Some("Ok Ext")));
-        assert_eq!(c.get_extension("me", "new", &mut log), GetExtension::NotFound);
+        assert!(
+            matches!(c.get_extension("me", "ok", &mut log), GetExtension::Success(r) if r.display_name.as_deref() == Some("Ok Ext"))
+        );
+        assert_eq!(
+            c.get_extension("me", "new", &mut log),
+            GetExtension::NotFound
+        );
         assert_eq!(c.get_extension("me", "bad", &mut log), GetExtension::Error);
-        assert!(err.text().contains("VsixPub0029 : An error occurred while communicating with the marketplace: boom"));
+        assert!(err.text().contains(
+            "VsixPub0029 : An error occurred while communicating with the marketplace: boom"
+        ));
     }
 
     #[test]
@@ -398,12 +502,21 @@ mod tests {
             .create();
         let (mut log, _, err) = capture();
         let c = client(&s);
-        let r = c.create_extension(&[1, 2, 3], "me", &mut log).unwrap().unwrap();
+        let r = c
+            .create_extension(&[1, 2, 3], "me", &mut log)
+            .unwrap()
+            .unwrap();
         assert_eq!(r.display_name.as_deref(), Some("New"));
         create.assert();
-        assert!(c.update_extension(&[1], "me", "x", &mut log).unwrap().is_none());
+        assert!(
+            c.update_extension(&[1], "me", "x", &mut log)
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(log.last_error_code_or(0), 43);
-        assert!(err.text().contains("preventing it from being uploaded to the Marketplace: VSIXValidatorWarning01"));
+        assert!(err.text().contains(
+            "preventing it from being uploaded to the Marketplace: VSIXValidatorWarning01"
+        ));
     }
 
     #[test]
@@ -413,19 +526,32 @@ mod tests {
             .with_status(404)
             .with_body(r#"{"message":"m","typeKey":"ExtensionDoesNotExistException"}"#)
             .create();
-        s.mock("DELETE", "/_apis/gallery/publishers/me/extensions/y/").with_status(204).create();
+        s.mock("DELETE", "/_apis/gallery/publishers/me/extensions/y/")
+            .with_status(204)
+            .create();
         let (mut log, _, _) = capture();
         let c = client(&s);
-        assert_eq!(c.delete_extension("me", "y", &mut log), DeleteResult::Success);
-        assert_eq!(c.delete_extension("me", "x", &mut log), DeleteResult::NotFound);
+        assert_eq!(
+            c.delete_extension("me", "y", &mut log),
+            DeleteResult::Success
+        );
+        assert_eq!(
+            c.delete_extension("me", "x", &mut log),
+            DeleteResult::NotFound
+        );
         assert_eq!(log.last_error_code_or(0), 32);
     }
 
     #[test]
     fn delete_publisher_reports_errors() {
         let mut s = Server::new();
-        s.mock("DELETE", "/_apis/gallery/publishers/me/").with_status(200).create();
-        s.mock("DELETE", "/_apis/gallery/publishers/no/").with_status(403).with_body(r#"{"message":"denied"}"#).create();
+        s.mock("DELETE", "/_apis/gallery/publishers/me/")
+            .with_status(200)
+            .create();
+        s.mock("DELETE", "/_apis/gallery/publishers/no/")
+            .with_status(403)
+            .with_body(r#"{"message":"denied"}"#)
+            .create();
         let (mut log, _, _) = capture();
         let c = client(&s);
         assert!(c.delete_publisher("me", &mut log));
@@ -435,21 +561,31 @@ mod tests {
     #[test]
     fn plain_http_is_refused_except_loopback() {
         let (mut log, _, err) = capture();
-        let c = HttpMarketplaceClient::new(Url::parse("http://example.com/").unwrap(), "pat".into());
+        let c =
+            HttpMarketplaceClient::new(Url::parse("http://example.com/").unwrap(), "pat".into());
         assert!(!c.authenticate(&mut log));
         assert_eq!(
             err.text(),
             "VSSDK: error VsixPub0031 : An error occurred while attempting to authenticate: Basic authentication requires a secure connection to the server.\n"
         );
-        assert!(is_secure_or_loopback(&Url::parse("http://127.0.0.1:1/").unwrap()));
-        assert!(is_secure_or_loopback(&Url::parse("http://localhost/").unwrap()));
-        assert!(is_secure_or_loopback(&Url::parse("https://example.com/").unwrap()));
+        assert!(is_secure_or_loopback(
+            &Url::parse("http://127.0.0.1:1/").unwrap()
+        ));
+        assert!(is_secure_or_loopback(
+            &Url::parse("http://localhost/").unwrap()
+        ));
+        assert!(is_secure_or_loopback(
+            &Url::parse("https://example.com/").unwrap()
+        ));
     }
 
     #[test]
     fn parse_url() {
         let (mut log, _, _) = capture();
-        assert_eq!(parse_marketplace_url(None, &mut log).unwrap().as_str(), DEFAULT_MARKETPLACE_URL);
+        assert_eq!(
+            parse_marketplace_url(None, &mut log).unwrap().as_str(),
+            DEFAULT_MARKETPLACE_URL
+        );
         assert!(parse_marketplace_url(Some("not a url"), &mut log).is_none());
         assert_eq!(log.last_error_code_or(0), 34);
     }

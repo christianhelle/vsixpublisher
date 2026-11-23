@@ -68,13 +68,26 @@ impl PublisherDb {
     }
 
     pub fn add(&self, name: &str, pat: &str, overwrite: bool, log: &mut Logger) -> bool {
-        assert!(!name.is_empty(), "AddPublisherToDatabase requires a publisher name.");
-        assert!(!pat.is_empty(), "AddPublisherToDatabase requires a personal access token.");
-        let entry = PublisherEntry { name: name.into(), pat: pat.into() };
+        assert!(
+            !name.is_empty(),
+            "AddPublisherToDatabase requires a publisher name."
+        );
+        assert!(
+            !pat.is_empty(),
+            "AddPublisherToDatabase requires a personal access token."
+        );
+        let entry = PublisherEntry {
+            name: name.into(),
+            pat: pat.into(),
+        };
         let db = if !self.path.is_file() {
-            PublishersDatabase { publishers: vec![entry] }
+            PublishersDatabase {
+                publishers: vec![entry],
+            }
         } else {
-            let Some(mut db) = self.read(log) else { return false };
+            let Some(mut db) = self.read(log) else {
+                return false;
+            };
             if let Some(i) = db.publishers.iter().position(|p| p.name == name) {
                 if !overwrite {
                     log.error(msg::PUBLISHER_ALREADY_EXISTS, &[&name]);
@@ -100,7 +113,9 @@ impl PublisherDb {
         if !self.path.is_file() {
             return not_logged_in(log);
         }
-        let Some(mut db) = self.read(log) else { return false };
+        let Some(mut db) = self.read(log) else {
+            return false;
+        };
         let Some(i) = db.publishers.iter().position(|p| p.name == name) else {
             return not_logged_in(log);
         };
@@ -122,7 +137,12 @@ impl PublisherDb {
             return None;
         }
         let db = self.read(log)?;
-        match db.publishers.into_iter().find(|p| p.name == name).map(|p| p.pat) {
+        match db
+            .publishers
+            .into_iter()
+            .find(|p| p.name == name)
+            .map(|p| p.pat)
+        {
             Some(pat) if !pat.is_empty() => Some(pat),
             _ => {
                 log.error(msg::PUBLISHER_NOT_IN_VSCE, &[&name]);
@@ -153,7 +173,10 @@ mod tests {
             std::fs::read_to_string(db.path()).unwrap(),
             r#"{"publishers":[{"name":"a","pat":"pat-a"},{"name":"b","pat":"pat-b"}]}"#
         );
-        assert_eq!(db.personal_access_token("b", &mut log).as_deref(), Some("pat-b"));
+        assert_eq!(
+            db.personal_access_token("b", &mut log).as_deref(),
+            Some("pat-b")
+        );
         assert!(db.remove("a", false, &mut log));
         assert!(db.remove("b", false, &mut log));
         assert!(!db.path().exists());
@@ -169,7 +192,10 @@ mod tests {
         assert_eq!(log.last_error_code_or(0), 12);
         assert!(err.text().contains("already logged-in: 'a'"));
         assert!(db.add("a", "2", true, &mut log));
-        assert_eq!(db.personal_access_token("a", &mut log).as_deref(), Some("2"));
+        assert_eq!(
+            db.personal_access_token("a", &mut log).as_deref(),
+            Some("2")
+        );
     }
 
     #[test]

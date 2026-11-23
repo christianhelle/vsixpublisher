@@ -28,8 +28,12 @@ fn bin(home: &Path) -> Command {
 fn fixture(dir: &Path) {
     let f = std::fs::File::create(dir.join("My.vsix")).unwrap();
     let mut z = zip::ZipWriter::new(f);
-    for (n, b) in [("[Content_Types].xml", "<Types/>"), ("extension.vsixmanifest", V2_MANIFEST)] {
-        z.start_file(n, zip::write::SimpleFileOptions::default()).unwrap();
+    for (n, b) in [
+        ("[Content_Types].xml", "<Types/>"),
+        ("extension.vsixmanifest", V2_MANIFEST),
+    ] {
+        z.start_file(n, zip::write::SimpleFileOptions::default())
+            .unwrap();
         z.write_all(b.as_bytes()).unwrap();
     }
     z.finish().unwrap();
@@ -48,7 +52,9 @@ fn help_lists_commands() {
         .arg("help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("publish                       Publishes an extension."));
+        .stdout(predicate::str::contains(
+            "publish                       Publishes an extension.",
+        ));
 }
 
 #[test]
@@ -68,8 +74,13 @@ fn login_publish_logout_round_trip() {
     fixture(work.path());
     let mut s = Server::new();
     let url = format!("{}/", s.url());
-    s.mock("GET", "/_apis/connectionData").match_query(Matcher::Any).with_body("{}").create();
-    s.mock("GET", "/_apis/gallery/publishers/me/").with_body(r#"{"publisherName":"me"}"#).create();
+    s.mock("GET", "/_apis/connectionData")
+        .match_query(Matcher::Any)
+        .with_body("{}")
+        .create();
+    s.mock("GET", "/_apis/gallery/publishers/me/")
+        .with_body(r#"{"publisherName":"me"}"#)
+        .create();
     s.mock("GET", "/_apis/gallery/publishers/me/extensions/my-ext/")
         .with_status(404)
         .with_body(r#"{"message":"x","typeKey":"ExtensionDoesNotExistException"}"#)
@@ -81,7 +92,15 @@ fn login_publish_logout_round_trip() {
         .create();
 
     bin(home.path())
-        .args(["login", "-publisherName", "me", "-personalAccessToken", "secret", "-marketplaceUrl", &url])
+        .args([
+            "login",
+            "-publisherName",
+            "me",
+            "-personalAccessToken",
+            "secret",
+            "-marketplaceUrl",
+            &url,
+        ])
         .assert()
         .success()
         .stdout("VSSDK: information VsixPub0041 : Publisher 'me' is now logged-in.\n");
@@ -89,7 +108,15 @@ fn login_publish_logout_round_trip() {
 
     bin(home.path())
         .current_dir(work.path())
-        .args(["publish", "-payload", "My.vsix", "-publishManifest", "publish.json", "-marketplaceUrl", &url])
+        .args([
+            "publish",
+            "-payload",
+            "My.vsix",
+            "-publishManifest",
+            "publish.json",
+            "-marketplaceUrl",
+            &url,
+        ])
         .assert()
         .success()
         .stdout("VSSDK: information VsixPub0038 : Uploaded 'My Extension' to the marketplace.\n");
@@ -109,8 +136,16 @@ fn publish_without_login_fails_with_code_7() {
     fixture(work.path());
     bin(home.path())
         .current_dir(work.path())
-        .args(["publish", "-payload", "My.vsix", "-publishManifest", "publish.json"])
+        .args([
+            "publish",
+            "-payload",
+            "My.vsix",
+            "-publishManifest",
+            "publish.json",
+        ])
         .assert()
         .code(7)
-        .stderr(predicate::str::contains("Have you run the \"login\" command?"));
+        .stderr(predicate::str::contains(
+            "Have you run the \"login\" command?",
+        ));
 }

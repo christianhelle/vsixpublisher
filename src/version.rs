@@ -14,7 +14,12 @@ pub struct Version {
 
 impl Version {
     pub fn new(major: i32, minor: i32, build: i32, revision: i32) -> Self {
-        Self { major, minor, build, revision }
+        Self {
+            major,
+            minor,
+            build,
+            revision,
+        }
     }
 
     pub fn parse(s: &str) -> Option<Self> {
@@ -126,8 +131,16 @@ fn version_string(v: Option<Version>, num: i32) -> String {
 
 impl fmt::Display for VersionRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let lo = if self.maximum.is_none() { String::new() } else { version_string(self.minimum, 0) };
-        let hi = if self.maximum.is_none() { String::new() } else { version_string(self.maximum, i32::MAX) };
+        let lo = if self.maximum.is_none() {
+            String::new()
+        } else {
+            version_string(self.minimum, 0)
+        };
+        let hi = if self.maximum.is_none() {
+            String::new()
+        } else {
+            version_string(self.maximum, i32::MAX)
+        };
         if let (Some(min), None, true) = (self.minimum, self.maximum, self.is_minimum_inclusive) {
             return write!(f, "{min}");
         }

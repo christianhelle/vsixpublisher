@@ -62,8 +62,11 @@ pub fn part_name(raw: &str) -> Result<String, String> {
         while i < bytes.len() {
             let b = bytes[i];
             if b == b'%' {
-                let hex = seg.get(i + 1..i + 3).ok_or_else(|| format!("Invalid part name '{raw}'."))?;
-                let v = u8::from_str_radix(hex, 16).map_err(|_| format!("Invalid part name '{raw}'."))?;
+                let hex = seg
+                    .get(i + 1..i + 3)
+                    .ok_or_else(|| format!("Invalid part name '{raw}'."))?;
+                let v = u8::from_str_radix(hex, 16)
+                    .map_err(|_| format!("Invalid part name '{raw}'."))?;
                 if v == b'/' || v == b'\\' {
                     return Err(format!("Invalid part name '{raw}'."));
                 }
@@ -104,7 +107,9 @@ impl Builder {
     fn add(&mut self, part: &str, content_type: &'static str, data: &[u8]) -> Result<(), String> {
         let lower = part.to_lowercase();
         if self.names.contains(&lower) {
-            return Err(format!("Cannot add part for the specified URI because it is already in the package: '{part}'."));
+            return Err(format!(
+                "Cannot add part for the specified URI because it is already in the package: '{part}'."
+            ));
         }
         self.names.push(lower);
         let ext = extension(part).trim_start_matches('.').to_lowercase();
@@ -121,23 +126,36 @@ impl Builder {
             }
         }
         let opts = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
-        self.zip.start_file(&part[1..], opts).map_err(|e| e.to_string())?;
+        self.zip
+            .start_file(&part[1..], opts)
+            .map_err(|e| e.to_string())?;
         self.zip.write_all(data).map_err(|e| e.to_string())
     }
 
     fn finish(mut self) -> Result<Vec<u8>, String> {
         // System.IO.Packaging writes a UTF-8 BOM.
-        let mut ct = format!("\u{feff}<?xml version=\"1.0\" encoding=\"utf-8\"?><Types xmlns=\"{CONTENT_TYPES_NS}\">");
+        let mut ct = format!(
+            "\u{feff}<?xml version=\"1.0\" encoding=\"utf-8\"?><Types xmlns=\"{CONTENT_TYPES_NS}\">"
+        );
         for ext in &self.default_order {
-            ct.push_str(&format!("<Default Extension=\"{ext}\" ContentType=\"{}\" />", self.defaults[ext]));
+            ct.push_str(&format!(
+                "<Default Extension=\"{ext}\" ContentType=\"{}\" />",
+                self.defaults[ext]
+            ));
         }
         for (p, t) in &self.overrides {
-            ct.push_str(&format!("<Override PartName=\"{p}\" ContentType=\"{t}\" />"));
+            ct.push_str(&format!(
+                "<Override PartName=\"{p}\" ContentType=\"{t}\" />"
+            ));
         }
         ct.push_str("</Types>");
         let opts = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
-        self.zip.start_file("[Content_Types].xml", opts).map_err(|e| e.to_string())?;
-        self.zip.write_all(ct.as_bytes()).map_err(|e| e.to_string())?;
+        self.zip
+            .start_file("[Content_Types].xml", opts)
+            .map_err(|e| e.to_string())?;
+        self.zip
+            .write_all(ct.as_bytes())
+            .map_err(|e| e.to_string())?;
         Ok(self.zip.finish().map_err(|e| e.to_string())?.into_inner())
     }
 }
@@ -254,16 +272,40 @@ mod tests {
         std::fs::write(d.path().join("a.png"), b"PNG").unwrap();
         let m = PublishManifest {
             asset_files: vec![
-                AssetFile { path_on_disk: "README.md".into(), target_path: "/overview.md".into(), asset_type: None },
-                AssetFile { path_on_disk: "a.png".into(), target_path: "img/a.png".into(), asset_type: None },
+                AssetFile {
+                    path_on_disk: "README.md".into(),
+                    target_path: "/overview.md".into(),
+                    asset_type: None,
+                },
+                AssetFile {
+                    path_on_disk: "a.png".into(),
+                    target_path: "img/a.png".into(),
+                    asset_type: None,
+                },
             ],
             ..Default::default()
         };
         let (mut log, _, _) = capture();
-        let pkg = build(&m, "<x/>", Some(&d.path().join("My.vsix")), d.path(), &mut log).unwrap();
+        let pkg = build(
+            &m,
+            "<x/>",
+            Some(&d.path().join("My.vsix")),
+            d.path(),
+            &mut log,
+        )
+        .unwrap();
         let e = entries(&pkg);
         let names: Vec<&str> = e.iter().map(|(n, _)| n.as_str()).collect();
-        assert_eq!(names, ["My.vsix", "extension.marketplacemanifest", "overview.md", "img/a.png", "[Content_Types].xml"]);
+        assert_eq!(
+            names,
+            [
+                "My.vsix",
+                "extension.marketplacemanifest",
+                "overview.md",
+                "img/a.png",
+                "[Content_Types].xml"
+            ]
+        );
         assert_eq!(e[0].1, b"VSIX");
         assert_eq!(e[1].1, b"<x/>");
         let ct = String::from_utf8(e[4].1.clone()).unwrap();
@@ -281,10 +323,21 @@ mod tests {
     fn link_payload_has_no_payload_part_and_bad_asset_fails() {
         let d = tempfile::tempdir().unwrap();
         let (mut log, _, _) = capture();
-        let pkg = build(&PublishManifest::default(), "<x/>", None, d.path(), &mut log).unwrap();
+        let pkg = build(
+            &PublishManifest::default(),
+            "<x/>",
+            None,
+            d.path(),
+            &mut log,
+        )
+        .unwrap();
         assert_eq!(entries(&pkg).len(), 2);
         let m = PublishManifest {
-            asset_files: vec![AssetFile { path_on_disk: "x".into(), target_path: "bad/".into(), asset_type: None }],
+            asset_files: vec![AssetFile {
+                path_on_disk: "x".into(),
+                target_path: "bad/".into(),
+                asset_type: None,
+            }],
             ..Default::default()
         };
         assert!(build(&m, "<x/>", None, d.path(), &mut log).is_none());
