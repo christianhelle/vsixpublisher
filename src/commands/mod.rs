@@ -1,3 +1,4 @@
+pub mod delete_extension;
 pub mod login;
 pub mod logout;
 
