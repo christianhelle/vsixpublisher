@@ -120,13 +120,14 @@ impl Builder {
                 Some(_) => self.overrides.push((part.to_string(), content_type)),
             }
         }
-        let opts = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+        let opts = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
         self.zip.start_file(&part[1..], opts).map_err(|e| e.to_string())?;
         self.zip.write_all(data).map_err(|e| e.to_string())
     }
 
     fn finish(mut self) -> Result<Vec<u8>, String> {
-        let mut ct = format!("<?xml version=\"1.0\" encoding=\"utf-8\"?><Types xmlns=\"{CONTENT_TYPES_NS}\">");
+        // System.IO.Packaging writes a UTF-8 BOM.
+        let mut ct = format!("\u{feff}<?xml version=\"1.0\" encoding=\"utf-8\"?><Types xmlns=\"{CONTENT_TYPES_NS}\">");
         for ext in &self.default_order {
             ct.push_str(&format!("<Default Extension=\"{ext}\" ContentType=\"{}\" />", self.defaults[ext]));
         }
@@ -134,7 +135,7 @@ impl Builder {
             ct.push_str(&format!("<Override PartName=\"{p}\" ContentType=\"{t}\" />"));
         }
         ct.push_str("</Types>");
-        let opts = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+        let opts = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
         self.zip.start_file("[Content_Types].xml", opts).map_err(|e| e.to_string())?;
         self.zip.write_all(ct.as_bytes()).map_err(|e| e.to_string())?;
         Ok(self.zip.finish().map_err(|e| e.to_string())?.into_inner())
@@ -268,7 +269,7 @@ mod tests {
         let ct = String::from_utf8(e[4].1.clone()).unwrap();
         assert_eq!(
             ct,
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">\
+            "\u{feff}<?xml version=\"1.0\" encoding=\"utf-8\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">\
 <Default Extension=\"vsix\" ContentType=\"application/zip\" />\
 <Default Extension=\"marketplacemanifest\" ContentType=\"text/xml\" />\
 <Default Extension=\"md\" ContentType=\"application/octet-stream\" />\
