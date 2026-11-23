@@ -1,0 +1,21 @@
+[package]
+name = "vsixpublisher"
+version = "0.1.0"
+edition = "2024"
+description = "Cross-platform Rust port of the Visual Studio Marketplace VsixPublisher tool"
+license = "MIT"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls", "json"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+quick-xml = "0.37"
+regex = "1"
+tempfile = "3"
+dirs = "6"
+
+[dev-dependencies]
+mockito = "1"
+assert_cmd = "2"
+predicates = "3"
