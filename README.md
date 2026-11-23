@@ -59,6 +59,10 @@ steps:
 ## Differences from the original
 
 - No Visual Studio telemetry.
+- `-oidc` works. The original sends the GitHub token to the Marketplace token exchange as `Bearer`,
+  which the Marketplace rejects. This port uses the same contract as `vsce`
+  (`Authorization: FederatedToken`, `api-version=7.2-preview.1`, `X-Market-CI-Provider: github-actions`),
+  and masks the resulting credential in GitHub Actions logs.
 - Basic authentication over plain `http://` is refused (as in the original) except for loopback
   addresses, so you can test against a local mock server.
 - The vsix-1.0 (`Vsix` 2010 schema) `Locale` LCID is mapped through a built-in table of common
