@@ -3,3 +3,4 @@ pub mod messages;
 pub mod cli;
 pub mod version;
 pub mod enums;
+pub mod manifest;
