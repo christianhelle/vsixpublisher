@@ -4,3 +4,4 @@ pub mod cli;
 pub mod version;
 pub mod enums;
 pub mod manifest;
+pub mod db;
