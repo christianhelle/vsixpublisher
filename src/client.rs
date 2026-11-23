@@ -146,6 +146,10 @@ impl HttpMarketplaceClient {
 
     /// Equivalent of `VssConnection.ConnectAsync`.
     pub fn authenticate(&self, log: &mut Logger) -> bool {
+        if !is_secure_or_loopback(&self.base) {
+            log.error(msg::COULD_NOT_AUTHENTICATE, &[&"Basic authentication requires a secure connection to the server."]);
+            return false;
+        }
         let url = self.url("_apis/connectionData?connectOptions=1&lastChangeId=-1&lastChangeId64=-1");
         let rb = self.request(Method::GET, url, "1.0").timeout(AUTH_TIMEOUT);
         match Self::send(rb) {
@@ -273,6 +277,19 @@ impl MarketplaceClient for HttpMarketplaceClient {
                 DeleteResult::Error
             }
         }
+    }
+}
+
+/// `VssBasicCredential` refuses plain HTTP; loopback is allowed so the tool can be tested locally.
+pub fn is_secure_or_loopback(url: &Url) -> bool {
+    if url.scheme() == "https" {
+        return true;
+    }
+    match url.host() {
+        Some(url::Host::Domain(d)) => d.eq_ignore_ascii_case("localhost"),
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        None => false,
     }
 }
 
@@ -413,6 +430,20 @@ mod tests {
         let c = client(&s);
         assert!(c.delete_publisher("me", &mut log));
         assert!(!c.delete_publisher("no", &mut log));
+    }
+
+    #[test]
+    fn plain_http_is_refused_except_loopback() {
+        let (mut log, _, err) = capture();
+        let c = HttpMarketplaceClient::new(Url::parse("http://example.com/").unwrap(), "pat".into());
+        assert!(!c.authenticate(&mut log));
+        assert_eq!(
+            err.text(),
+            "VSSDK: error VsixPub0031 : An error occurred while attempting to authenticate: Basic authentication requires a secure connection to the server.\n"
+        );
+        assert!(is_secure_or_loopback(&Url::parse("http://127.0.0.1:1/").unwrap()));
+        assert!(is_secure_or_loopback(&Url::parse("http://localhost/").unwrap()));
+        assert!(is_secure_or_loopback(&Url::parse("https://example.com/").unwrap()));
     }
 
     #[test]
