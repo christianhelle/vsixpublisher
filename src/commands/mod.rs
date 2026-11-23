@@ -1,4 +1,5 @@
 pub mod delete_extension;
+pub mod delete_publisher;
 pub mod login;
 pub mod logout;
 
