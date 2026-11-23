@@ -5,27 +5,45 @@ on:
     branches: [main]
   pull_request:
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  build:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --all-targets -- -D warnings
+
+  test:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest, windows-11-arm]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --check
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test
-      - run: cargo build --release
-      - uses: actions/upload-artifact@v4
-        with:
-          name: vsixpublisher-${{ matrix.os }}
-          path: |
-            target/release/vsixpublisher
-            target/release/vsixpublisher.exe
-          if-no-files-found: ignore
+      - run: cargo test --locked
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@1.89
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --locked
