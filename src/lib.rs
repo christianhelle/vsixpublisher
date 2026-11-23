@@ -11,3 +11,4 @@ pub mod xml;
 pub mod vsix;
 pub mod validate;
 pub mod marketplace_manifest;
+pub mod package;
