@@ -33,6 +33,7 @@ impl Http {
             .max_redirects(0)
             .max_redirects_will_error(false)
             .user_agent(user_agent)
+            .tls_config(tls_config())
             .build()
             .into();
         Self { agent }
@@ -65,6 +66,22 @@ impl Http {
         let text = resp.body_mut().read_to_string().unwrap_or_default();
         Ok((status, text))
     }
+}
+
+/// The operating system's TLS stack and certificate store.
+#[cfg(any(windows, target_os = "macos"))]
+fn tls_config() -> ureq::tls::TlsConfig {
+    use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
+    TlsConfig::builder()
+        .provider(TlsProvider::NativeTls)
+        .root_certs(RootCerts::PlatformVerifier)
+        .build()
+}
+
+/// rustls with the bundled Mozilla roots (no system TLS library needed).
+#[cfg(not(any(windows, target_os = "macos")))]
+fn tls_config() -> ureq::tls::TlsConfig {
+    ureq::tls::TlsConfig::default()
 }
 
 /// `Basic` authorization header value for `user:password`.
