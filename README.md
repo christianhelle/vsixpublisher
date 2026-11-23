@@ -68,6 +68,14 @@ steps:
 - The vsix-1.0 (`Vsix` 2010 schema) `Locale` LCID is mapped through a built-in table of common
   cultures instead of the Windows culture database.
 
+## TLS and binary size
+
+The release build is tuned for size (`opt-level = "z"`, LTO, `panic = "abort"`, stripped). It uses
+a small blocking HTTP client, with no async runtime. On Windows and macOS it uses the operating
+system's TLS stack and certificate store (SChannel / Security.framework). On Linux it uses rustls
+with bundled Mozilla root certificates, so it doesn't need OpenSSL. `HTTPS_PROXY`/`NO_PROXY` are
+honoured.
+
 ## Building
 
 ```shell
