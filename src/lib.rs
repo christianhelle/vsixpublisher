@@ -9,3 +9,4 @@ pub mod commands;
 pub mod client;
 pub mod xml;
 pub mod vsix;
+pub mod validate;
