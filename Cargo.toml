@@ -8,7 +8,6 @@ description = "Publish Visual Studio extensions to the Visual Studio Marketplace
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/christianhelle/vsixpublisher"
-homepage = "https://github.com/christianhelle/vsixpublisher"
 keywords = ["vsix", "visual-studio", "marketplace", "publish", "extension"]
 categories = ["command-line-utilities", "development-tools"]
 exclude = [".github/", ".devcontainer/", ".gitattributes", "docs/"]
