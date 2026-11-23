@@ -135,7 +135,7 @@ impl Parser {
             Some(cmd) => {
                 let mut args: Vec<Argument> =
                     cmd.arguments().into_iter().filter(|a| !a.hidden).collect();
-                args.sort_by_key(|a| !a.required);
+                args.sort_by_key(|a| (!a.required, a.name.to_ascii_lowercase()));
                 for a in args {
                     let help = if a.required {
                         format_net(msg::REQUIRED_ARGUMENT_FORMAT, &[&a.help])
@@ -301,12 +301,12 @@ mod tests {
         let p = parser();
         let u = p.usage(Some(&Dummy), Some("boom"));
         let expected = format!(
-            "{}\n{}\n\nboom\n  -{:<30}Required. The name.\n\n  -{:<30}Optional.\n\n  -{:<30}Force it.\n\n",
+            "{}\n{}\n\nboom\n  -{:<30}Required. The name.\n\n  -{:<30}Force it.\n\n  -{:<30}Optional.\n\n",
             Parser::version_string(),
             msg::COPYRIGHT,
             "name",
-            "opt",
-            "force"
+            "force",
+            "opt"
         );
         assert_eq!(u, expected);
     }
