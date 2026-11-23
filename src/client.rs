@@ -104,10 +104,10 @@ pub struct HttpMarketplaceClient {
 
 /// Mirrors `VssHttpClientBase` error handling: wrapped-exception JSON or a status-based message.
 fn service_error(url: &Url, status: StatusCode, body: &str) -> ErrorResponse {
-    if let Ok(e) = serde_json::from_str::<ErrorResponse>(body) {
-        if e.message.is_some() {
-            return e;
-        }
+    if let Ok(e) = serde_json::from_str::<ErrorResponse>(body)
+        && e.message.is_some()
+    {
+        return e;
     }
     let message = if status == StatusCode::UNAUTHORIZED {
         format!(

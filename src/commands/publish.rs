@@ -298,10 +298,10 @@ fn publish(
         return log.last_error_code_or(-1);
     };
 
-    if let Some(out) = ctx.output.filter(|o| !o.is_empty()) {
-        if let Err(e) = std::fs::write(out, &pkg) {
-            return log.error(msg::GENERIC_ERROR_PUBLISHING, &[&ctx.payload, &e]);
-        }
+    if let Some(out) = ctx.output.filter(|o| !o.is_empty())
+        && let Err(e) = std::fs::write(out, &pkg)
+    {
+        return log.error(msg::GENERIC_ERROR_PUBLISHING, &[&ctx.payload, &e]);
     }
 
     let publisher = m.publisher.clone().unwrap_or_default();
@@ -463,7 +463,7 @@ mod tests {
         assert!(xml.contains(r#"Path="/My.vsix""#));
         assert!(!xml.contains("<Installation>"));
         assert_eq!(env.uploaded_entry("overview.md"), b"# Hello");
-        assert_eq!(env.uploaded_entry("My.vsix").len() > 0, true);
+        assert!(!env.uploaded_entry("My.vsix").is_empty());
         let icon_line = xml.lines().find(|l| l.contains("<Icon>")).unwrap();
         let icon = icon_line
             .trim()

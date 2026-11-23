@@ -18,8 +18,11 @@ pub trait TokenProvider {
     -> Option<String>;
 }
 
+/// Environment variable lookup (injectable for tests).
+pub type EnvLookup = Box<dyn Fn(&str) -> Option<String>>;
+
 pub struct GitHubActionsTokenProvider {
-    pub env: Box<dyn Fn(&str) -> Option<String>>,
+    pub env: EnvLookup,
 }
 
 impl Default for GitHubActionsTokenProvider {

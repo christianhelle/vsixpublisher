@@ -93,11 +93,11 @@ pub fn validate(
         log.error(msg::REQUIRES_INSTALL_TARGET, &[]);
         return false;
     }
-    if let Some(repo) = m.repo.as_deref().filter(|r| !r.is_empty()) {
-        if !is_http_url(repo) {
-            log.error(msg::SOURCE_REPO_INVALID, &[&repo]);
-            return false;
-        }
+    if let Some(repo) = m.repo.as_deref().filter(|r| !r.is_empty())
+        && !is_http_url(repo)
+    {
+        log.error(msg::SOURCE_REPO_INVALID, &[&repo]);
+        return false;
     }
     let internal = id.internal_name.as_deref().unwrap_or_default();
     let re = regex::Regex::new(r"^[a-zA-Z0-9][a-zA-Z0-9\-]*$").unwrap();
