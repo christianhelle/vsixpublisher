@@ -159,7 +159,13 @@ impl TokenProvider for GitHubActionsTokenProvider {
             Ok((true, body)) => match serde_json::from_str::<TokenResponse>(&body) {
                 Ok(TokenResponse {
                     credential: Some(c),
-                }) if !c.is_empty() => Some(c),
+                }) if !c.is_empty() => {
+                    if (self.env)("GITHUB_ACTIONS").as_deref() == Some("true") {
+                        // Keep the short-lived credential out of the workflow log.
+                        log.message(&format!("::add-mask::{c}"));
+                    }
+                    Some(c)
+                }
                 Ok(_) => {
                     log.error(
                         msg::OIDC_SESSION_TOKEN_EXCHANGE_FAILED,
@@ -245,14 +251,20 @@ mod tests {
         let p = provider(&[
             (REQUEST_TOKEN_VAR, "req-token".into()),
             (REQUEST_URL_VAR, format!("{}/oidc", s.url())),
+            ("GITHUB_ACTIONS", "true".into()),
         ]);
-        let (mut log, _, _) = capture();
+        let (mut log, out, _) = capture();
         let url = Url::parse(&format!("{}/", s.url())).unwrap();
         assert_eq!(
             p.session_token("me", &url, &mut log).as_deref(),
             Some("session")
         );
         exchange.assert();
+        assert_eq!(
+            out.text(),
+            "::add-mask::session
+"
+        );
     }
 
     #[test]
