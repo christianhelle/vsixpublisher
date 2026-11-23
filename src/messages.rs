@@ -3,7 +3,7 @@
 use crate::logger::{MessageType::Error as E, MessageType::Information as I, OutputMessage as M};
 
 pub const TOOL_NAME: &str = "Vsix Publishing Tools";
-pub const COPYRIGHT: &str = "Copyright (C) Microsoft Corporation. All rights reserved.";
+pub const COPYRIGHT: &str = "Copyright (C) Christian Resma Helle. All rights reserved.";
 
 // Command line parser strings (VsixCommandLine.dll).
 pub const ARGUMENT_MISSING_VALUE: &str = "'{0}' requires a value.";
