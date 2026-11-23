@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- A cross-platform replacement for the Visual Studio SDK's `VsixPublisher.exe`,
-  running natively on Windows, Linux and macOS.
+- A drop-in replacement for the `VsixPublisher.exe` included in the Visual
+  Studio SDK, running natively on Windows, Linux and macOS.
 - The `publish`, `login`, `logout`, `deleteExtension`, `deletePublisher`,
   `help` and `version` commands. They take the same `-argument value` syntax
   and print the same `VsixPubNNNN` messages and exit codes as the original.
